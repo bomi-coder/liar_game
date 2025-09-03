@@ -153,7 +153,7 @@ socket.on("game_start", (data) => {
 socket.on("round_start", (data) => {
   phaseTitle.textContent = `라운드 ${data.round}/${data.total_rounds} 시작!`;
   subjectBox.textContent = `주제: ${data.subject}`;
-  keywordBox.textContent = `제시어: (비공개)`;
+  // keywordBox는 여기서 건드리지 않음! (role_assignment에서 최종 세팅)
   voteBox.style.display = "none";
   guessBox.style.display = "none";
   orderBox.innerHTML = "";
