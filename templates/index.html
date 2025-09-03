@@ -47,6 +47,20 @@
         <span id="timer-box" class="badge" style="background:#ffd1e8;color:#111;"></span>
       </div>
       <div class="space"></div>
+
+      <!-- 호스트 전용 컨트롤 패널 -->
+      <div id="host-controls" class="card" style="display:none;">
+        <h3>호스트 컨트롤</h3>
+        <div class="row">
+          <button class="btn" id="btn-begin-round">라운드 시작</button>
+          <button class="btn" id="btn-next-speaker">다음 발언자</button>
+          <button class="btn" id="btn-start-discussion">토론 시작</button>
+          <button class="btn" id="btn-start-vote">투표 시작</button>
+          <button class="btn" id="btn-start-sum-reveal">합계 공개</button>
+        </div>
+        <p class="small">※ 호스트만 보입니다.</p>
+      </div>
+    
       <div class="card">
         <div id="role-box" class="badge">내 역할: -</div>
         <div id="subject-box" style="margin-top:8px;">주제: -</div>
@@ -79,15 +93,6 @@
         <button class="btn" id="csv-btn">CSV로 저장</button>
       </div>
     </div>
-
-    <!-- 발언자 팝업 -->
-    <div id="speaker-popup" class="popup">
-      <div class="popup-inner">
-        <span class="speaker-name-badge"></span>
-        <p>님의 힌트 발언 차례입니다</p>
-      </div>
-    </div>
-
   </div>
 
   <script src="/static/client.js"></script>
