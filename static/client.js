@@ -33,17 +33,20 @@ const scoreboardBox = $("#scoreboard-box");
 const scoreboardList = $("#scoreboard-list");
 const csvBtn = $("#csv-btn");
 
+// speaker 팝업 요소
+const speakerPopup = document.createElement("div");
+speakerPopup.id = "speaker-popup";
+speakerPopup.innerHTML = '<div class="popup-inner"><span class="speaker-name-badge"></span><p>님의 힌트 발언 차례입니다</p></div>';
+document.body.appendChild(speakerPopup);
+
 // 초기가리기
 lobbySection.style.display = "none";
 gameSection.style.display = "none";
+speakerPopup.style.display = "none";
 
 // 이름 입력 후 로비 버튼 노출
 nameInput.addEventListener("input", () => {
-  if (nameInput.value.trim().length > 0) {
-    lobbyBtn.disabled = false;
-  } else {
-    lobbyBtn.disabled = true;
-  }
+  lobbyBtn.disabled = nameInput.value.trim().length <= 0;
 });
 
 // 로비 입장
@@ -125,18 +128,14 @@ socket.on("player_list", (list) => {
 });
 
 socket.on("host_ok", (res) => {
-  if(res.ok){
-    alert("호스트 권한이 부여되었습니다.");
-  } else {
-    alert("코드가 올바르지 않습니다.");
-  }
+  alert(res.ok ? "호스트 권한이 부여되었습니다." : "코드가 올바르지 않습니다.");
 });
 
 socket.on("error_msg", (data) => {
   alert(data.msg);
 });
 
-socket.on("game_start", (data) => {
+socket.on("game_start", () => {
   lobbySection.style.display = "none";
   gameSection.style.display = "block";
   scoreboardBox.style.display = "none";
@@ -153,7 +152,6 @@ socket.on("game_start", (data) => {
 socket.on("round_start", (data) => {
   phaseTitle.textContent = `라운드 ${data.round}/${data.total_rounds} 시작!`;
   subjectBox.textContent = `주제: ${data.subject}`;
-  // keywordBox는 여기서 건드리지 않음! (role_assignment에서 최종 세팅)
   voteBox.style.display = "none";
   guessBox.style.display = "none";
   orderBox.innerHTML = "";
@@ -168,9 +166,17 @@ socket.on("role_assignment", (data) => {
 socket.on("hint_turn", (data) => {
   phaseTitle.textContent = "힌트 발언 단계";
   orderBox.innerHTML = `발언자: ${data.speaker_name} (${data.order_index+1}/${data.total})`;
+
+  // 발언자에게만 팝업 + 진동
+  if(mySid === data.speaker_sid){
+    speakerPopup.querySelector(".speaker-name-badge").textContent = data.speaker_name;
+    speakerPopup.style.display = "flex";
+    if(navigator.vibrate){ navigator.vibrate(300); }
+    setTimeout(()=>{ speakerPopup.style.display = "none"; }, 4000);
+  }
 });
 
-socket.on("discussion_start", (data) => {
+socket.on("discussion_start", () => {
   phaseTitle.textContent = "자유 토론";
 });
 
@@ -189,7 +195,7 @@ socket.on("vote_start", (data) => {
   });
 });
 
-socket.on("vote_tie", (data) => {
+socket.on("vote_tie", () => {
   alert("동률입니다. 동률자 발언을 진행합니다.");
 });
 
@@ -199,11 +205,10 @@ socket.on("tie_speech_turn", (data) => {
 
 socket.on("liar_guess_start", (data) => {
   phaseTitle.textContent = `라이어 정답 기회 (지목됨: ${data.liar_name})`;
-  guessBox.style.display = "none"; // 기본은 숨김, 라이어에게만 enable 이벤트
+  guessBox.style.display = "none";
 });
 
 socket.on("liar_input_enable", () => {
-  // 라이어에게만 입력창 표시
   guessBox.style.display = "block";
 });
 
@@ -232,35 +237,5 @@ socket.on("game_over", (data) => {
   scoreboardBox.style.display = "block";
 });
 
-socket.on("timer_tick", (data) => {
-  setTimer(data.remaining);
-});
-
-socket.on("timer_done", () => {
-  // no-op
-});
-const btnStartSumReveal = $("#btn-start-sum-reveal");
-if(btnStartSumReveal){ btnStartSumReveal.onclick = ()=> socket.emit("start_vote_sum_reveal"); }
-
-socket.on("timer_reset", (data)=>{
-  if(timerBox){
-    timerBox.classList.remove("timer-flash");
-    void timerBox.offsetWidth;
-    timerBox.classList.add("timer-flash");
-    timerBox.textContent = `남은 시간: ${data.seconds}초`;
-  }
-});
-
-socket.on("vote_result_sum", (data)=>{
-  if(voteSumResultBox && voteSumResultText){
-    voteSumResultText.textContent = `최다 득표: ${data.accused.name} (역할: ${data.role})`;
-    voteSumResultBox.style.display = "block";
-  }
-});
-
-socket.on("vote_ok", (data)=>{
-  // 투표 확정 시 버튼 강조
-  $all("#vote-box button.vote-selected").forEach(b=>{
-    b.classList.add("vote-confirmed");
-  });
-});
+socket.on("timer_tick", (data) => setTimer(data.remaining));
+socket.on("timer_done", () => {});
