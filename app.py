@@ -33,9 +33,6 @@ order = []    # speaking order (list of sid)
 game_state = {
 
 # 수동 진행 플래그
-manual_mode = True  # 수동으로 단계 버튼으로 진행
-hint_initialized = False  # 힌트 단계 초기화 여부
-tie_speech_started = False  # 동률자 발언 시작 여부
     "phase": "lobby",   # lobby, assign, hints, discuss, vote1, tie_speech, vote2, liar_guess, reveal, round_end, game_end
     "round": 0,
     "subject": None,
