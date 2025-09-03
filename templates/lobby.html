@@ -27,20 +27,19 @@
   const startBtn = document.getElementById('startBtn');
 
   socket.on('connect', () => {
-    // 세션에 저장된 이름/호스트 여부를 이용해 로비에서도 join!
+    // 로비에서도 반드시 join 전송 (호스트면 BOM, 아니면 빈 문자열)
     socket.emit('join', {
       name: "{{ session.get('name','') }}",
-      host_code: {{ '\"' + ( 'BOM' ) + '\"' if is_host else '\"\"' }}
+      host_code: "{{ 'BOM' if is_host else '' }}"
     });
   });
 
   socket.on('join_ok', (d) => {
-    // 필요하면 여기서 호스트 여부에 따라 버튼 노출 제어 가능
-    if (startBtn) startBtn.disabled = false;
-  });
-
-  socket.on('error', (e) => {
-    alert(e.msg || '에러가 발생했어요.');
+    // 호스트만 시작 버튼 활성화 (서버에서도 최종 검증함)
+    if (startBtn) {
+      startBtn.disabled = !d.is_host;
+      if (!d.is_host) startBtn.title = '호스트만 시작할 수 있어요';
+    }
   });
 
   socket.on('state', (s) => {
@@ -51,8 +50,14 @@
   });
 
   if (startBtn) {
-    startBtn.onclick = () => socket.emit('start_game');
+    startBtn.addEventListener('click', () => {
+      socket.emit('start_game');
+    });
   }
+
+  socket.on('error', (e) => {
+    alert((e && e.msg) || '에러가 발생했어요.');
+  });
   </script>
 </body>
 </html>
