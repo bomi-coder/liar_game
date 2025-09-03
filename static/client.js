@@ -171,7 +171,7 @@ socket.on("hint_turn", (data) => {
 });
 
 socket.on("discussion_start", (data) => {
-  phaseTitle.textContent = "자유 토론 (2분)";
+  phaseTitle.textContent = "자유 토론";
 });
 
 socket.on("vote_start", (data) => {
