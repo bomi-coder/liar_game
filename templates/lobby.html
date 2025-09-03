@@ -23,7 +23,8 @@ const startBtn = document.getElementById('startBtn');
 socket.on('connect', () => {
   socket.emit('join', {
     name: "{{ session.get('name','') }}",
-    host_code: "{{ host_code if is_host else '' }}"
+    // 🔁 수정: is_host 여부와 무관하게 세션에 저장된 호스트 코드를 그대로 전달
+    host_code: "{{ session.get('host_code','') }}"
   });
 });
 
