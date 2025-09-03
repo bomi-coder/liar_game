@@ -310,10 +310,14 @@ def index():
 @app.route("/enter", methods=["POST"])
 def enter():
     name = request.form.get("name","").strip()
-    if not name: return redirect(url_for('index'))
+    if not name:
+        return redirect(url_for('index'))
     session['name'] = name
-    # 개발자만 호스트 권한 얻도록 쿼리스트링 보호도 가능. 여기선 HOST_CODE를 세션에 심을 수 있도록 옵션:
-    session['host_code'] = request.args.get('code','')
+
+    # ⬇️ 폼 입력(code) → 없으면 쿼리스트링(?code=) → 둘 다 없으면 ''
+    code = (request.form.get('code','') or request.args.get('code','') or '').strip()
+    session['host_code'] = code
+
     return redirect(url_for('lobby'))
 
 @app.route("/lobby")
@@ -414,4 +418,5 @@ def liar_guess(data):
 @socketio.on('get_scores')
 def get_scores():
     emit('scores', {"players":[{"name":p["name"],"score":p["score"]} for p in PLAYERS.values()]})
+
 
