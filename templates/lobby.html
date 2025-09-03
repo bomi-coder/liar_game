@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <h2 class="title">게임 로비</h2>
+  <p class="stitle">접속자 목록</p>
+  <ul id="players" class="list"></ul>
+  <hr>
+  <div class="grid grid-2">
+    <div>
+      <div class="pill">라운드: <span id="round">-</span> / 5</div>
+    </div>
+    <div class="center">
+      <button id="startBtn" class="btn btn-primary" disabled>게임 시작</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const socket = io();
+const playersEl = document.getElementById('players');
+const startBtn = document.getElementById('startBtn');
+
+socket.on('connect', () => {
+  socket.emit('join', {
+    name: "{{ session.get('name','') }}",
+    host_code: "{{ host_code if is_host else '' }}"
+  });
+});
+
+socket.on('join_ok', (d) => {
+  if (d.is_host) startBtn.disabled = false;
+});
+
+socket.on('state', (s) => {
+  playersEl.innerHTML = '';
+  s.players.forEach(p=>{
+    const li = document.createElement('li');
+    li.className = 'li';
+    li.textContent = p.name + (p.is_host ? ' 👑' : '');
+    playersEl.appendChild(li);
+  });
+  document.getElementById('round').textContent = s.round;
+});
+
+startBtn?.addEventListener('click', ()=>{
+  socket.emit('start_game');
+});
+
+socket.on('move_game', ()=>{
+  location.href = "{{ url_for('game') }}";
+});
+
+socket.on('error_msg', (e)=>alert(e.msg || '에러가 발생했어요.'));
+</script>
+{% endblock %}

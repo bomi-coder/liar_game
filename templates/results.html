@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <h2 class="title">최종 결과</h2>
+  <div id="scoreWrap"></div>
+  <div class="center" style="margin-top:10px">
+    <a class="btn btn-outline" href="{{ url_for('lobby') }}">로비로 돌아가기</a>
+  </div>
+</div>
+
+<script>
+const socket = io();
+socket.on('connect', ()=> socket.emit('get_scores'));
+
+socket.on('scores', (d)=>{
+  const wrap = document.getElementById('scoreWrap');
+  const ul = document.createElement('ul'); ul.className='list';
+  d.players.forEach(p=>{
+    const li = document.createElement('li'); li.className='li';
+    li.innerHTML = `<b>${p.name}</b> — <span class="pill">점수 ${p.score}</span>`;
+    ul.appendChild(li);
+  });
+  wrap.innerHTML = ''; wrap.appendChild(ul);
+});
+</script>
+{% endblock %}

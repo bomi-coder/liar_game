@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <h2 class="title">게임 진행</h2>
+  <div id="roleBox" class="li" style="background:#fff8fb">
+    <div><span class="badge">내 역할</span> <b id="role">-</b></div>
+    <div style="height:6px"></div>
+    <div><span class="badge">주제</span> <span id="topic">-</span></div>
+    <div id="wordWrap" style="margin-top:6px;"><span class="badge">제시어</span> <span id="word">-</span></div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="score">
+      <h3>턴/타이머</h3>
+      <div>현재 단계: <span id="phase">-</span></div>
+      <div style="height:6px"></div>
+      <div class="timer" id="timer">00:00</div>
+    </div>
+    <div class="score">
+      <h3>참가자</h3>
+      <ul id="plist" class="list"></ul>
+    </div>
+  </div>
+
+  <hr>
+  <div id="voteArea" class="card" style="background:#fffdfa">
+    <h3>공개 투표</h3>
+    <div id="voteButtons"></div>
+    <div style="height:8px"></div>
+    <button id="submitVote" class="btn btn-outline">투표 제출</button>
+  </div>
+
+  <div id="guessArea" class="card" style="background:#f7fffb; display:none;">
+    <h3>라이어 최종 정답 맞히기 (30초)</h3>
+    <input id="guessInput" class="input" placeholder="정답을 입력하세요">
+    <div style="height:8px"></div>
+    <button id="submitGuess" class="btn btn-primary">정답 제출</button>
+  </div>
+
+  <div class="center" style="margin-top:12px">
+    <div class="pill">라운드 <span id="round">-</span> / 5</div>
+  </div>
+</div>
+
+<script>
+const socket = io();
+let myId = null;
+let voted = null;
+
+function mmss(sec){
+  sec = Math.max(0, sec|0);
+  const m = String(Math.floor(sec/60)).padStart(2,'0');
+  const s = String(sec%60).padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+socket.on('connect', ()=>{
+  socket.emit('sync_game');
+});
+
+socket.on('me', (d)=>{ myId = d.id; });
+
+socket.on('game_info', (g)=>{
+  document.getElementById('role').textContent = g.me.role;
+  document.getElementById('topic').textContent = g.topic;
+  document.getElementById('round').textContent = g.round;
+
+  const wordWrap = document.getElementById('wordWrap');
+  const wordEl = document.getElementById('word');
+  if (g.me.word){
+    wordEl.textContent = g.me.word;
+    wordWrap.style.display = 'block';
+  } else {
+    wordWrap.style.display = 'none';
+  }
+
+  const plist = document.getElementById('plist');
+  plist.innerHTML = '';
+  g.players.forEach(p=>{
+    const li = document.createElement('li');
+    li.className='li';
+    li.innerHTML = `${p.name} ${p.speaked? '🗣️':''} ${p.is_dead?'(탈락)':''}`;
+    plist.appendChild(li);
+  });
+
+  document.getElementById('phase').textContent = g.phase_label;
+  document.getElementById('timer').textContent = mmss(g.seconds_left);
+
+  // 투표 UI
+  const voteArea = document.getElementById('voteArea');
+  const voteButtons = document.getElementById('voteButtons');
+  const submitVote = document.getElementById('submitVote');
+  if (g.phase === 'VOTE' || g.phase === 'REVOTE'){
+    voteArea.style.display = 'block';
+    voteButtons.innerHTML = '';
+    voted = g.my_vote || null;
+    g.players.filter(p=>!p.is_dead).forEach(p=>{
+      const b = document.createElement('button');
+      b.className = 'vote-btn' + (voted===p.id ? ' active':'');
+      b.textContent = p.name;
+      b.onclick = ()=>{ 
+        voted = p.id;
+        [...voteButtons.children].forEach(c=>c.classList.remove('active'));
+        b.classList.add('active');
+      };
+      voteButtons.appendChild(b);
+      voteButtons.appendChild(document.createTextNode(' '));
+    });
+    submitVote.onclick = ()=>{
+      if (!voted) return alert('한 명을 선택하세요!');
+      socket.emit('submit_vote', {target_id: voted});
+    }
+  } else {
+    voteArea.style.display = 'none';
+  }
+
+  // 라이어 맞히기
+  const guessArea = document.getElementById('guessArea');
+  if (g.phase === 'LIAR_GUESS' && g.me.role==='LIAR'){
+    guessArea.style.display = 'block';
+  } else {
+    guessArea.style.display = 'none';
+  }
+});
+
+socket.on('tick', (sec)=>{
+  document.getElementById('timer').textContent = mmss(sec);
+});
+
+socket.on('move_results', ()=>{
+  location.href = "{{ url_for('results') }}";
+});
+
+document.getElementById('submitGuess')?.addEventListener('click', ()=>{
+  const val = document.getElementById('guessInput').value.trim();
+  if (!val) return alert('정답을 입력하세요!');
+  socket.emit('liar_guess', {guess: val});
+});
+</script>
+{% endblock %}

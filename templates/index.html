@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <h1 class="title">라이어 게임</h1>
+  <p class="stitle">made by. bom</p>
+  <form method="post" action="{{ url_for('enter') }}">
+    <label>이름</label>
+    <input class="input" name="name" placeholder="이름을 입력하세요" required>
+    <div style="height:10px"></div>
+    <button class="btn btn-primary" type="submit">게임 로비 입장</button>
+  </form>
+</div>
+{% endblock %}
