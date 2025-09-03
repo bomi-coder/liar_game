@@ -25,26 +25,6 @@ const keywordBox = $("#keyword-box");
 const orderBox = $("#order-box");
 const timerBox = $("#timer-box");
 const voteBox = $("#vote-box");
-
-// 호스트 컨트롤 버튼
-const btnBeginRound = $("#btn-begin-round");
-const btnNextSpeaker = $("#btn-next-speaker");
-const btnStartDiscussion = $("#btn-start-discussion");
-const btnStartVote = $("#btn-start-vote");
-const btnStartTie = $("#btn-start-tie");
-const btnStartRevote = $("#btn-start-revote");
-
-// 모달
-const turnModal = $("#turn-modal");
-const turnModalTitle = $("#turn-modal-title");
-const turnModalBody = $("#turn-modal-body");
-const turnModalClose = $("#turn-modal-close");
-
-// 투표 현황
-const voteStatusList = $("#vote-status-list");
-const voteResultBox = $("#vote-result-box");
-const voteResultText = $("#vote-result-text");
-
 const voteList = $("#vote-list");
 const guessBox = $("#guess-box");
 const guessInput = $("#guess-input");
@@ -259,50 +239,28 @@ socket.on("timer_tick", (data) => {
 socket.on("timer_done", () => {
   // no-op
 });
+const btnStartSumReveal = $("#btn-start-sum-reveal");
+if(btnStartSumReveal){ btnStartSumReveal.onclick = ()=> socket.emit("start_vote_sum_reveal"); }
 
-function updateHostControls(){
-  const hc = document.querySelector("#host-controls");
-  if(!hc) return;
-  hc.style.display = isHost ? "block" : "none";
-}
-
-
-// 버튼 핸들러
-if(btnBeginRound){ btnBeginRound.onclick = ()=> socket.emit("begin_round"); }
-if(btnNextSpeaker){ btnNextSpeaker.onclick = ()=> socket.emit("next_speaker"); }
-if(btnStartDiscussion){ btnStartDiscussion.onclick = ()=> socket.emit("start_discussion"); }
-if(btnStartVote){ btnStartVote.onclick = ()=> socket.emit("start_vote_manual"); }
-if(btnStartTie){ btnStartTie.onclick = ()=> socket.emit("start_tie_speech"); }
-if(btnStartRevote){ btnStartRevote.onclick = ()=> socket.emit("start_revote"); }
-
-if(turnModalClose){ turnModalClose.onclick = ()=> turnModal.style.display="none"; }
-
-
-socket.on("your_turn_popup", (data)=>{
-  if(turnModal){
-    turnModalTitle.textContent = "발언 차례";
-    turnModalBody.textContent = `'${data.name}' 님이 힌트를 발언할 차례입니다`;
-    turnModal.style.display = "flex";
-  }else{
-    alert(`'${data.name}' 님이 힌트를 발언할 차례입니다`);
+socket.on("timer_reset", (data)=>{
+  if(timerBox){
+    timerBox.classList.remove("timer-flash");
+    void timerBox.offsetWidth;
+    timerBox.classList.add("timer-flash");
+    timerBox.textContent = `남은 시간: ${data.seconds}초`;
   }
 });
 
-// 투표 현황 업데이트
-socket.on("vote_update", (data)=>{
-  if(!voteStatusList) return;
-  voteStatusList.innerHTML = "";
-  data.voted.forEach(v=>{
-    const li = document.createElement("li");
-    li.textContent = `${v.from} → ${v.to}`;
-    voteStatusList.appendChild(li);
+socket.on("vote_result_sum", (data)=>{
+  if(voteSumResultBox && voteSumResultText){
+    voteSumResultText.textContent = `최다 득표: ${data.accused.name} (역할: ${data.role})`;
+    voteSumResultBox.style.display = "block";
+  }
+});
+
+socket.on("vote_ok", (data)=>{
+  // 투표 확정 시 버튼 강조
+  $all("#vote-box button.vote-selected").forEach(b=>{
+    b.classList.add("vote-confirmed");
   });
-});
-
-// 투표 결과 표시
-socket.on("vote_result", (data)=>{
-  if(voteResultBox && voteResultText){
-    voteResultText.textContent = `최다 득표: ${data.accused.name} (역할: ${data.role})`;
-    voteResultBox.style.display = "block";
-  }
 });
