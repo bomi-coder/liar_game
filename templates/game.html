@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>게임 화면</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>게임 진행</h1>
+    <div class="grid">
+      <div class="card">
+        <h3>내 정보</h3>
+        <div id="roleBox">역할/제시어 대기중...</div>
+      </div>
+      <div class="card">
+        <h3>라운드/타이머</h3>
+        <div>라운드: <span id="round">-</span></div>
+        <div>단계: <span id="phase">-</span></div>
+        <div>남은 시간: <span id="timer">0</span>초</div>
+        <div id="speakTurn"></div>
+        <div id="hostControls" style="display:none; margin-top:8px;">
+          <button id="nextBtn">다음 진행(호스트)</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>투표</h3>
+        <div id="voteBox">투표 단계가 아닙니다.</div>
+      </div>
+      <div class="card">
+        <h3>참가자</h3>
+        <ul id="players"></ul>
+      </div>
+    </div>
+
+    <div id="guessBox" class="card" style="display:none;">
+      <h3>라이어 정답 시도 (30초)</h3>
+      <input id="guessInput" placeholder="제시어를 입력">
+      <button id="guessBtn">제출</button>
+    </div>
+
+    <div id="resultBox" class="card" style="display:none;"></div>
+  </div>
+
+  <script>
+    const socket = io();
+    let isHost = {{ 'true' if is_host else 'false' }};
+    let mySid = null;
+    let timerInterval = null;
+
+    socket.on('connect', () => {
+      // 이름과 호스트 여부는 서버 세션이 들고 있음.
+      // 소켓에 join으로 내 이름 등록 필요 (세션으로는 sid 매핑이 없어서)
+      // 이름은 index -> /join POST에서 세션에 저장되어 있으므로 아래에서 입력창 없이 서버 조인만 호출
+      fetch('/lobby', {method:'HEAD'});
+      socket.emit('join', {"name": "{{ session.get('name','') }}", "host_code": isHost ? "BOM" : ""});
+    });
+
+    socket.on('join_ok', (d) => {
+      if (d && typeof d.is_host !== 'undefined') {
+        isHost = d.is_host;
+        document.getElementById('hostControls').style.display = isHost ? 'block' : 'none';
+      }
+    });
+
+    socket.on('hello', ()=>{});
+
+    socket.on('personal', (p) => {
+      const roleBox = document.getElementById('roleBox');
+      if (p.role === 'liar') {
+        roleBox.innerHTML = `<b>역할:</b> 라이어<br><b>주제:</b> ${p.topic}<br><b>제시어:</b> (비공개)`;
+      } else if (p.role === 'spy') {
+        roleBox.innerHTML = `<b>역할:</b> 스파이<br><b>주제:</b> ${p.topic}<br><b>제시어:</b> ${p.word}`;
+      } else {
+        roleBox.innerHTML = `<b>역할:</b> 시민<br><b>주제:</b> ${p.topic}<br><b>제시어:</b> ${p.word}`;
+      }
+    });
+
+    socket.on('state', (s) => {
+      document.getElementById('round').textContent = s.current_round || '-';
+      document.getElementById('phase').textContent = s.phase || '-';
+      const ul = document.getElementById('players');
+      ul.innerHTML = '';
+      for (const p of s.players) {
+        const li = document.createElement('li');
+        li.textContent = `${p.name} (점수 ${p.score})`;
+        li.dataset.sid = p.sid;
+        ul.appendChild(li);
+      }
+
+      // 발언자
+      if (s.order && s.order.length && s.phase === 'clue_turns') {
+        const idx = Math.min(s.order.length-1, {{0}}); // placeholder
+      }
+      // 타이머 표시(서버 잔여 시간 참조)
+      startTimer(s.timer_remaining || 0);
+    });
+
+    socket.on('speak_turn', (d) => {
+      const div = document.getElementById('speakTurn');
+      const sid = d.sid;
+      const li = Array.from(document.querySelectorAll('#players li')).find(el => el.dataset.sid === sid);
+      div.textContent = li ? `발언 차례: ${li.textContent}` : '발언 차례';
+    });
+
+    socket.on('timer_start', (d) => {
+      startTimer(d.seconds || 0);
+    });
+
+    function startTimer(sec) {
+      clearInterval(timerInterval);
+      let remain = sec;
+      document.getElementById('timer').textContent = remain;
+      timerInterval = setInterval(() => {
+        remain -= 1;
+        document.getElementById('timer').textContent = Math.max(0, remain);
+        if (remain <= 0) {
+          clearInterval(timerInterval);
+          socket.emit('timer_expired');
+        }
+      }, 1000);
+    }
+
+    // 투표 UI
+    function renderVoteBox(phase, players) {
+      const voteBox = document.getElementById('voteBox');
+      if (phase === 'vote' || phase === 'revote') {
+        voteBox.innerHTML = '<p>지목할 참가자를 클릭하세요.</p>';
+        const list = document.createElement('div');
+        for (const p of players) {
+          const btn = document.createElement('button');
+          btn.textContent = p.name;
+          btn.onclick = () => socket.emit('cast_vote', {target_sid: p.sid});
+          btn.style.margin = '4px';
+          list.appendChild(btn);
+        }
+        voteBox.appendChild(list);
+      } else if (phase === 'tiebreak') {
+        voteBox.innerHTML = '<p>동률자 발언 시간입니다. 대기해주세요.</p>';
+      } else if (phase === 'guess') {
+        voteBox.innerHTML = '<p>라이어의 정답 시도 단계입니다.</p>';
+      } else {
+        voteBox.textContent = '투표 단계가 아닙니다.';
+      }
+    }
+
+    socket.on('state', (s) => {
+      renderVoteBox(s.phase, s.players);
+    });
+
+    // 라이어 정답 시도
+    const guessBox = document.getElementById('guessBox');
+    const guessBtn = document.getElementById('guessBtn');
+    guessBtn.onclick = () => {
+      const val = document.getElementById('guessInput').value.trim();
+      if (val) socket.emit('submit_guess', {guess: val});
+      document.getElementById('guessInput').value = '';
+    };
+
+    socket.on('ask_guess', () => {
+      guessBox.style.display = 'block';
+    });
+
+    socket.on('round_result', (r) => {
+      guessBox.style.display = 'none';
+      const box = document.getElementById('resultBox');
+      box.style.display = 'block';
+      box.innerHTML = `
+        <h3>라운드 결과</h3>
+        <p><b>주제:</b> ${r.topic} / <b>제시어:</b> ${r.word}</p>
+        <p>라이어: ${findName(r.liar_sid)} / 스파이: ${r.spy_sid ? findName(r.spy_sid) : '없음'}</p>
+        <p>라이어가 지목되었나? <b>${r.liar_caught ? '예' : '아니오'}</b></p>
+        <p>라이어가 정답을 맞췄나? <b>${r.liar_guessed_correct ? '예' : '아니오'}</b></p>
+        <h4>점수</h4>
+        <ul>${Object.entries(r.scores).map(([sid, sc]) => `<li>${findName(sid)}: ${sc}점</li>`).join('')}</ul>
+      `;
+    });
+
+    function findName(sid) {
+      const li = Array.from(document.querySelectorAll('#players li')).find(el => el.dataset.sid === sid);
+      return li ? li.textContent.split(' (점수')[0] : sid;
+    }
+
+    // 호스트 수동 진행 버튼 (네트워크 지연/문제시 사용)
+    if (isHost) {
+      document.getElementById('hostControls').style.display = 'block';
+    }
+    document.getElementById('nextBtn')?.addEventListener('click', () => socket.emit('next_turn'));
+  </script>
+</body>
+</html>

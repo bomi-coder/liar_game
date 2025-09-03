@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>게임 로비</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>게임 로비</h1>
+    <div id="players" class="card"></div>
+
+    {% if is_host %}
+    <button id="startBtn">게임 시작</button>
+    {% else %}
+    <p class="hint">호스트가 시작할 때까지 기다려주세요.</p>
+    {% endif %}
+
+    <a class="link" href="/game">게임 화면으로 이동</a>
+  </div>
+
+  <script>
+    const socket = io();
+    const playersDiv = document.getElementById('players');
+    const startBtn = document.getElementById('startBtn');
+
+    socket.on('connect', () => {
+      // 세션 기반: 이름/코드 제출은 HTTP로 완료됨. 소켓에는 join 이벤트로 이름 재전송 필요 없음
+      fetch('/game', {method:'HEAD'}); // 세션 워밍업
+      // 로비에서는 별도 join 안 해도 됨(서버에서 connect 시 ROOM 가입)
+    });
+
+    socket.on('state', (s) => {
+      const html = ['<h3>접속자</h3><ul>'];
+      for (const p of s.players) {
+        html.push(`<li>${p.name} (점수 ${p.score})</li>`);
+      }
+      html.push('</ul>');
+      playersDiv.innerHTML = html.join('');
+    });
+
+    if (startBtn) {
+      startBtn.onclick = () => socket.emit('start_game');
+    }
+  </script>
+</body>
+</html>
