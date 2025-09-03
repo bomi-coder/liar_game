@@ -42,6 +42,18 @@
     </div>
 
     <div id="game" class="card">
+      <div id="host-controls" class="card host-only">
+        <h3>호스트 컨트롤</h3>
+        <div class="btn-row">
+          <button class="btn" id="btn-begin-round">라운드 시작</button>
+          <button class="btn" id="btn-next-speaker">다음 발언자</button>
+          <button class="btn" id="btn-start-discussion">토론 시작</button>
+          <button class="btn" id="btn-start-vote">투표 시작</button>
+          <button class="btn" id="btn-start-tie">동률자 발언 시작</button>
+          <button class="btn" id="btn-start-revote">재투표 시작</button>
+        </div>
+      </div>
+
       <div class="row">
         <span id="phase-title" class="badge">대기 중</span>
         <span id="timer-box" class="badge" style="background:#ffd1e8;color:#111;"></span>
@@ -82,5 +94,14 @@
   </div>
 
   <script src="/static/client.js"></script>
+
+  <div id="turn-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <h3 id="turn-modal-title">발언 차례</h3>
+      <p id="turn-modal-body"></p>
+      <button class="btn" id="turn-modal-close">확인</button>
+    </div>
+  </div>
+
 </body>
 </html>
