@@ -222,19 +222,16 @@ def on_join(data):
     """data: {"name": "...", "host_code": "...(optional)"}"""
     name = (data.get("name") or "").strip()
     host_code = (data.get("host_code") or "").strip()
-
     if not name:
         emit("error", {"msg": "이름을 입력하세요."})
         return
 
     with lock:
         sid = request.sid
-        # ① 소켓 join 시, 세션의 is_host를 우선 신뢰
+        # 세션에 저장된 is_host를 우선 신뢰 + host_code가 오면 보조 인정
         sess_is_host = bool(flask_session.get("is_host", False))
-        # ② host_code가 함께 오면(예: /game 템플릿) 코드 검증도 허용
         is_host = sess_is_host or (host_code == HOST_CODE)
 
-        # 기존 플레이어 재접속/중복 조인 방지: 덮어쓰기
         players[sid] = {
             "name": name,
             "score": players.get(sid, {}).get("score", 0),
