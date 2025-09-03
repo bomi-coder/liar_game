@@ -102,7 +102,14 @@ def start_round():
     order = list(players.keys())
     random.shuffle(order)
 
-    # 개인 역할/제시어 발송 (유니캐스트: to=sid)
+    # ✅ 라운드 시작 브로드캐스트를 먼저 전송
+    socketio.emit("round_start", {
+        "round": game_state["round"],
+        "total_rounds": ROUND_COUNT,
+        "subject": game_state["subject"]
+    })
+
+    # 그 다음 개인 역할/제시어 발송 (유니캐스트: to=sid)
     for sid in players.keys():
         role = game_state["roles"].get(sid, "CITIZEN")
         if role == "LIAR":
@@ -117,13 +124,6 @@ def start_round():
                 "subject": game_state["subject"],
                 "keyword": game_state["keyword"]
             }, to=sid)
-
-    # 라운드 시작 브로드캐스트 (전체)
-    socketio.emit("round_start", {
-        "round": game_state["round"],
-        "total_rounds": ROUND_COUNT,
-        "subject": game_state["subject"]
-    })
 
     # 힌트 단계로 이동
     game_state["phase"] = "hints"
