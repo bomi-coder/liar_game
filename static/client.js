@@ -12,7 +12,6 @@ function $all(sel){ return document.querySelectorAll(sel); }
 const joinForm = $("#join-form");
 const nameInput = $("#name-input");
 const lobbyBtn = $("#lobby-btn");
-const introSection = $("#intro");
 const lobbySection = $("#lobby");
 const playerList = $("#player-list");
 const startBtn = $("#start-btn");
@@ -34,7 +33,7 @@ const scoreboardBox = $("#scoreboard-box");
 const scoreboardList = $("#scoreboard-list");
 const csvBtn = $("#csv-btn");
 
-// 호스트 컨트롤
+// --- 호스트 컨트롤 ---
 const hostControls = $("#host-controls");
 const btnBeginRound = $("#btn-begin-round");
 const btnNextSpeaker = $("#btn-next-speaker");
@@ -47,22 +46,32 @@ function updateHostControls(){
   hostControls.style.display = isHost ? "block" : "none";
 }
 
-// 발언자 팝업
-const speakerPopup = $("#speaker-popup");
-const speakerBadge = document.querySelector(".speaker-name-badge");
+if(btnBeginRound){ btnBeginRound.onclick = ()=> socket.emit("begin_round"); }
+if(btnNextSpeaker){ btnNextSpeaker.onclick = ()=> socket.emit("next_speaker"); }
+if(btnStartDiscussion){ btnStartDiscussion.onclick = ()=> socket.emit("start_discussion"); }
+if(btnStartVote){ btnStartVote.onclick = ()=> socket.emit("start_vote_manual"); }
+if(btnStartSumReveal){ btnStartSumReveal.onclick = ()=> socket.emit("start_vote_sum_reveal"); }
+
+
+// 초기가리기
+lobbySection.style.display = "none";
+gameSection.style.display = "none";
 
 // 이름 입력 후 로비 버튼 노출
 nameInput.addEventListener("input", () => {
-  lobbyBtn.disabled = nameInput.value.trim().length <= 0;
+  if (nameInput.value.trim().length > 0) {
+    lobbyBtn.disabled = false;
+  } else {
+    lobbyBtn.disabled = true;
+  }
 });
 
 // 로비 입장
 lobbyBtn.addEventListener("click", (e) => {
   e.preventDefault();
   myName = nameInput.value.trim();
-  if(!myName) return;
   socket.emit("join", {name: myName});
-  introSection.style.display = "none";
+  $("#intro").style.display = "none";
   lobbySection.style.display = "block";
 });
 
@@ -78,38 +87,48 @@ startBtn.addEventListener("click", () => {
   socket.emit("start_game");
 });
 
-// 버튼 바인딩
-if(btnBeginRound){ btnBeginRound.onclick = ()=> socket.emit("begin_round"); }
-if(btnNextSpeaker){ btnNextSpeaker.onclick = ()=> socket.emit("next_speaker"); }
-if(btnStartDiscussion){ btnStartDiscussion.onclick = ()=> socket.emit("start_discussion"); }
-if(btnStartVote){ btnStartVote.onclick = ()=> socket.emit("start_vote_manual"); }
-if(btnStartSumReveal){ btnStartSumReveal.onclick = ()=> socket.emit("start_vote_sum_reveal"); }
-
 // 투표
 function sendVote(targetSid){
   socket.emit("vote", {target_sid: targetSid});
 }
 
 // 라이어 정답 제출
-if(guessBtn){
-  guessBtn.addEventListener("click", () => {
-    const val = guessInput.value.trim();
-    if(!val) return;
-    socket.emit("liar_guess", {guess: val});
-    guessInput.value = "";
-  });
-}
+guessBtn.addEventListener("click", () => {
+  const val = guessInput.value.trim();
+  if(!val) return;
+  socket.emit("liar_guess", {guess: val});
+  guessInput.value = "";
+});
 
 // 타이머 표시
 function setTimer(sec){
-  timerBox.textContent = sec ? `남은 시간: ${sec}초` : "";
+  timerBox.textContent = sec + "초";
 }
+
+// scoreboard CSV 다운로드
+csvBtn.addEventListener("click", () => {
+  let rows = [["이름","점수"]];
+  $all("#scoreboard-list li").forEach(li => {
+    const name = li.getAttribute("data-name");
+    const score = li.getAttribute("data-score");
+    rows.push([name, score]);
+  });
+  const csv = rows.map(r => r.join(",")).join("\n");
+  const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "liar_game_scoreboard.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
 
 // ---- 소켓 이벤트 처리 ----
 socket.on("joined", (data) => {
   mySid = data.sid;
   myName = data.name;
-  updateHostControls();
 });
 
 socket.on("player_list", (list) => {
@@ -127,36 +146,38 @@ socket.on("player_list", (list) => {
 });
 
 socket.on("host_ok", (res) => {
-  alert(res.ok ? "호스트 권한이 부여되었습니다." : "코드가 올바르지 않습니다.");
-  if(res.ok){ isHost = true; updateHostControls(); }
+  if(res.ok){
+    alert("호스트 권한이 부여되었습니다.");
+  } else {
+    alert("코드가 올바르지 않습니다.");
+  }
 });
 
 socket.on("error_msg", (data) => {
   alert(data.msg);
 });
 
-socket.on("game_start", () => {
+socket.on("game_start", (data) => {
   lobbySection.style.display = "none";
   gameSection.style.display = "block";
   scoreboardBox.style.display = "none";
   phaseTitle.textContent = "게임 시작! 라운드 준비 중...";
-  roleBox.textContent = "내 역할: -";
-  subjectBox.textContent = "주제: -";
-  keywordBox.textContent = "제시어: -";
-  orderBox.innerHTML = "-";
+  roleBox.textContent = "";
+  subjectBox.textContent = "";
+  keywordBox.textContent = "";
+  orderBox.innerHTML = "";
   voteBox.style.display = "none";
   guessBox.style.display = "none";
   setTimer("");
-  updateHostControls();
 });
 
 socket.on("round_start", (data) => {
   phaseTitle.textContent = `라운드 ${data.round}/${data.total_rounds} 시작!`;
   subjectBox.textContent = `주제: ${data.subject}`;
+  // keywordBox는 여기서 건드리지 않음! (role_assignment에서 최종 세팅)
   voteBox.style.display = "none";
   guessBox.style.display = "none";
   orderBox.innerHTML = "";
-  setTimer("");
 });
 
 socket.on("role_assignment", (data) => {
@@ -165,61 +186,31 @@ socket.on("role_assignment", (data) => {
   keywordBox.textContent = `제시어: ${data.keyword}`;
 });
 
-socket.on("hints_ready", (data)=>{
-  phaseTitle.textContent = "힌트 발언 단계 (준비됨)";
-  // 발언 순서 리스트 표시
-  if(Array.isArray(data.order)){
-    orderBox.innerHTML = data.order.map((o,i)=> `${i+1}. ${o.name}`).join("<br>");
-  }
-});
-
 socket.on("hint_turn", (data) => {
-  phaseTitle.innerHTML = `<span class="speaker-highlight">${data.speaker_name}</span> <span class="small">(${data.order_index+1}/${data.total})</span>`;
-
-  // 발언자에게만 팝업 + 진동
-  if(mySid === data.speaker_sid){
-    if(speakerBadge){ speakerBadge.textContent = data.speaker_name; }
-    if(speakerPopup){ speakerPopup.style.display = "flex"; }
-    if(navigator.vibrate){ navigator.vibrate(300); }
-    setTimeout(()=>{ if(speakerPopup) speakerPopup.style.display = "none"; }, 4000);
-  }
+  phaseTitle.textContent = "힌트 발언 단계";
+  orderBox.innerHTML = `발언자: ${data.speaker_name} (${data.order_index+1}/${data.total})`;
 });
 
-socket.on("discussion_start", () => {
+socket.on("discussion_start", (data) => {
   phaseTitle.textContent = "자유 토론";
 });
 
 socket.on("vote_start", (data) => {
-  phaseTitle.textContent = data.first ? "1차 공개 투표" : (data.round===2 ? "2차 공개 투표" : "공개 투표");
+  phaseTitle.textContent = data.first ? "1차 공개 투표" : "재투표";
   voteBox.style.display = "block";
   voteList.innerHTML = "";
   data.candidates.forEach(c => {
     const btn = document.createElement("button");
     btn.className = "pill";
     btn.textContent = c.name;
-    btn.onclick = () => {
-      // UI 피드백
-      $all("#vote-list .pill").forEach(b=> b.classList.remove("vote-selected","vote-confirmed"));
-      btn.classList.add("vote-selected");
-      // 전송
-      socket.emit("vote", {target_sid: c.sid});
-    };
+    btn.onclick = () => sendVote(c.sid);
     const li = document.createElement("li");
     li.appendChild(btn);
     voteList.appendChild(li);
   });
 });
 
-socket.on("vote_ok", () => {
-  // 확정 피드백
-  $all("#vote-list .pill.vote-selected").forEach(b=> b.classList.add("vote-confirmed"));
-});
-
-socket.on("vote_update", (data) => {
-  // 필요 시 공개 현황 UI 갱신(1차/2차 분리 UI가 있으면 라운드에 맞게 표시)
-});
-
-socket.on("vote_tie", () => {
+socket.on("vote_tie", (data) => {
   alert("동률입니다. 동률자 발언을 진행합니다.");
 });
 
@@ -229,10 +220,11 @@ socket.on("tie_speech_turn", (data) => {
 
 socket.on("liar_guess_start", (data) => {
   phaseTitle.textContent = `라이어 정답 기회 (지목됨: ${data.liar_name})`;
-  guessBox.style.display = "none";
+  guessBox.style.display = "none"; // 기본은 숨김, 라이어에게만 enable 이벤트
 });
 
 socket.on("liar_input_enable", () => {
+  // 라이어에게만 입력창 표시
   guessBox.style.display = "block";
 });
 
@@ -261,6 +253,35 @@ socket.on("game_over", (data) => {
   scoreboardBox.style.display = "block";
 });
 
-socket.on("timer_reset", (data)=> setTimer(data.seconds));
-socket.on("timer_tick", (data) => setTimer(data.remaining));
-socket.on("timer_done", () => {});
+socket.on("timer_tick", (data) => {
+  setTimer(data.remaining);
+});
+
+socket.on("timer_done", () => {
+  // no-op
+});
+const btnStartSumReveal = $("#btn-start-sum-reveal");
+if(btnStartSumReveal){ btnStartSumReveal.onclick = ()=> socket.emit("start_vote_sum_reveal"); }
+
+socket.on("timer_reset", (data)=>{
+  if(timerBox){
+    timerBox.classList.remove("timer-flash");
+    void timerBox.offsetWidth;
+    timerBox.classList.add("timer-flash");
+    timerBox.textContent = `남은 시간: ${data.seconds}초`;
+  }
+});
+
+socket.on("vote_result_sum", (data)=>{
+  if(voteSumResultBox && voteSumResultText){
+    voteSumResultText.textContent = `최다 득표: ${data.accused.name} (역할: ${data.role})`;
+    voteSumResultBox.style.display = "block";
+  }
+});
+
+socket.on("vote_ok", (data)=>{
+  // 투표 확정 시 버튼 강조
+  $all("#vote-box button.vote-selected").forEach(b=>{
+    b.classList.add("vote-confirmed");
+  });
+});
