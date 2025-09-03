@@ -4,9 +4,10 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 app:app
+    startCommand: gunicorn -w 1 --threads 8 app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: HOST_CODE
         value: BOM
+
