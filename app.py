@@ -31,6 +31,11 @@ with open(DATA_PATH, "r", encoding="utf-8") as f:
 players = {}  # sid -> {name, score, is_host}
 order = []    # speaking order (list of sid)
 game_state = {
+
+# 수동 진행 플래그
+manual_mode = True  # 수동으로 단계 버튼으로 진행
+hint_initialized = False  # 힌트 단계 초기화 여부
+tie_speech_started = False  # 동률자 발언 시작 여부
     "phase": "lobby",   # lobby, assign, hints, discuss, vote1, tie_speech, vote2, liar_guess, reveal, round_end, game_end
     "round": 0,
     "subject": None,
@@ -125,9 +130,12 @@ def start_round():
                 "keyword": game_state["keyword"]
             }, to=sid)
 
-    # 힌트 단계로 이동
+    # 힌트 단계로 이동(수동 진행)
     game_state["phase"] = "hints"
-    socketio.start_background_task(run_hint_phase)
+    global hint_initialized
+    hint_initialized = True
+    game_state["current_speaker_idx"] = -1
+    socketio.emit("hints_ready", {"seconds": HINT_SECONDS, "order": [{"sid": s, "name": players[s]["name"]} for s in order]})
 
 def countdown(seconds, tick_event, end_event):
     # 서버 기준 타이머 (초 단위 브로드캐스트)
@@ -199,6 +207,12 @@ def run_vote_phase(first, candidates):
 
     max_votes = max(tally.values())
     top = [sid for sid, cnt in tally.items() if cnt == max_votes]
+
+        # 최다득표 결과 방송
+    accused = top[0]
+    role = game_state["roles"].get(accused, "CITIZEN")
+    role_k = "라이어" if role=="LIAR" else ("스파이" if role=="SPY" else "시민")
+    socketio.emit("vote_result", {"accused": {"sid": accused, "name": players.get(accused, {}).get("name", "?")}, "role": role_k, "tally": tally})
 
     if len(top) >= 2:
         # 동률자 발언
@@ -343,7 +357,7 @@ def on_start_game():
     for p in players.values():
         p["score"] = 0
     socketio.emit("game_start", {"rounds": ROUND_COUNT})
-    start_round()
+    # 수동: 호스트가 라운드 시작 버튼을 눌러야 진행됨
 
 @socketio.on("vote")
 def on_vote(data):
@@ -355,6 +369,12 @@ def on_vote(data):
         return
     game_state["votes"][sid] = target
     emit("vote_ok", {"ok": True}, to=sid)
+    # 공개 투표 현황 방송
+    voted = []
+    for v, t in game_state["votes"].items():
+        if v in players and t in players:
+            voted.append({"from": players[v]["name"], "to": players[t]["name"]})
+    socketio.emit("vote_update", {"voted": voted})
 
 @socketio.on("liar_guess")
 def on_liar_guess(data):
@@ -376,3 +396,94 @@ def on_liar_guess(data):
 
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+
+@socketio.on("begin_round")
+def on_begin_round():
+    sid = request.sid
+    if not players.get(sid, {}).get("is_host"):
+        emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
+        return
+    start_round()
+
+
+@socketio.on("next_speaker")
+def on_next_speaker():
+    sid = request.sid
+    if not players.get(sid, {}).get("is_host"):
+        emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
+        return
+    if game_state.get("phase") != "hints":
+        return
+    # advance index
+    if not order:
+        return
+    idx = game_state.get("current_speaker_idx", -1) + 1
+    if idx >= len(order):
+        # 모두 발언 완료
+        socketio.emit("all_hints_done", {})
+        return
+    game_state["current_speaker_idx"] = idx
+    spk_sid = order[idx]
+    if spk_sid not in players:
+        on_next_speaker()
+        return
+    socketio.emit("hint_turn", {
+        "speaker_sid": spk_sid,
+        "speaker_name": players[spk_sid]["name"],
+        "order_index": idx,
+        "total": len(order),
+        "seconds": HINT_SECONDS
+    })
+    # 본인에게 팝업
+    socketio.emit("your_turn_popup", {"name": players[spk_sid]["name"]}, to=spk_sid)
+    countdown(HINT_SECONDS, "timer_tick", "timer_done")
+
+
+@socketio.on("start_discussion")
+def on_start_discussion():
+    sid = request.sid
+    if not players.get(sid, {}).get("is_host"):
+        emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
+        return
+    if game_state.get("phase") not in ("hints", "discuss"):
+        return
+    game_state["phase"] = "discuss"
+    socketio.emit("discussion_start", {"seconds": DISCUSS_SECONDS})
+    countdown(DISCUSS_SECONDS, "timer_tick", "timer_done")
+
+
+@socketio.on("start_vote_manual")
+def on_start_vote_manual():
+    sid = request.sid
+    if not players.get(sid, {}).get("is_host"):
+        emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
+        return
+    start_vote(first=True)
+
+
+@socketio.on("start_tie_speech")
+def on_start_tie_speech():
+    sid = request.sid
+    if not players.get(sid, {}).get("is_host"):
+        emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
+        return
+    if not game_state.get("tie_candidates"):
+        return
+    game_state["phase"] = "tie_speech"
+    for spk_sid in game_state["tie_candidates"]:
+        if spk_sid in players:
+            socketio.emit("tie_speech_turn", {
+                "sid": spk_sid, "name": players[spk_sid]["name"], "seconds": TIE_SPEECH_SECONDS
+            })
+            countdown(TIE_SPEECH_SECONDS, "timer_tick", "timer_done")
+
+
+@socketio.on("start_revote")
+def on_start_revote():
+    sid = request.sid
+    if not players.get(sid, {}).get("is_host"):
+        emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
+        return
+    if not game_state.get("tie_candidates"):
+        return
+    start_vote(first=False, limited_to=game_state["tie_candidates"])
