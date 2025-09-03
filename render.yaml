@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: liar-game
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k eventlet -w 1 app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_CODE
+        value: BOM

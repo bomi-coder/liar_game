@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>라이어 게임</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="container">
+    <div id="intro" class="card">
+      <h1>라이어 게임</h1>
+      <p class="small">소 타이틀 : made by. bom</p>
+      <div class="space"></div>
+      <form id="join-form">
+        <label>이름 입력</label>
+        <input id="name-input" type="text" placeholder="닉네임을 입력하세요" />
+        <div class="space"></div>
+        <button id="lobby-btn" class="btn" disabled>게임 로비 입장</button>
+      </form>
+    </div>
+
+    <div id="lobby" class="card">
+      <h2>게임 로비</h2>
+      <div class="row">
+        <div class="card" style="flex:1; min-width:260px;">
+          <h3>접속자 목록</h3>
+          <ul id="player-list"></ul>
+        </div>
+        <div class="card" style="flex:1; min-width:260px;">
+          <h3>호스트 설정</h3>
+          <p class="small">개발자 코드 입력 시 <span class="badge">게임시작</span> 버튼이 활성화됩니다.</p>
+          <div class="row">
+            <input id="host-code-input" type="text" placeholder="개발자 코드" style="flex:1;">
+            <button id="host-code-btn" class="btn">호스트 되기</button>
+          </div>
+          <div class="space"></div>
+          <button id="start-btn" class="btn" style="display:none;">게임 시작</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="game" class="card">
+      <div class="row">
+        <span id="phase-title" class="badge">대기 중</span>
+        <span id="timer-box" class="badge" style="background:#ffd1e8;color:#111;"></span>
+      </div>
+      <div class="space"></div>
+      <div class="card">
+        <div id="role-box" class="badge">내 역할: -</div>
+        <div id="subject-box" style="margin-top:8px;">주제: -</div>
+        <div id="keyword-box" style="margin-top:4px;">제시어: -</div>
+      </div>
+
+      <div class="card">
+        <h3>순서 & 진행</h3>
+        <div id="order-box">-</div>
+      </div>
+
+      <div id="vote-box" class="card" style="display:none;">
+        <h3>투표</h3>
+        <ul id="vote-list"></ul>
+      </div>
+
+      <div id="guess-box" class="card" style="display:none;">
+        <h3>라이어 정답 입력</h3>
+        <div class="row">
+          <input id="guess-input" type="text" placeholder="제시어를 입력하세요">
+          <button id="guess-btn" class="btn">제출</button>
+        </div>
+        <p class="small">기회는 한 번! (제한시간 내)</p>
+      </div>
+
+      <div id="scoreboard-box" class="card">
+        <h3>최종 점수</h3>
+        <ul id="scoreboard-list"></ul>
+        <div class="space"></div>
+        <button class="btn" id="csv-btn">CSV로 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/client.js"></script>
+</body>
+</html>
