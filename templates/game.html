@@ -46,6 +46,7 @@
 const socket = io();
 let myId = null;
 let voted = null;
+let amHost = false;
 
 function mmss(sec){
   sec = Math.max(0, sec|0);
@@ -54,20 +55,30 @@ function mmss(sec){
   return `${m}:${s}`;
 }
 
+/* ✅ 페이지 진입 시: 공용 룸 재-조인 후 스냅샷 요청 */
 socket.on('connect', ()=>{
-  socket.emit('sync_game');
+  socket.emit('join', {
+    name: "{{ session.get('name','') }}",
+    host_code: "{{ session.get('host_code','') }}"
+  });
+});
+
+socket.on('join_ok', (d)=>{
+  amHost = !!d.is_host;
+  socket.emit('sync_game');   // 현재 라운드/역할/제시어 등 받아오기
 });
 
 socket.on('me', (d)=>{ myId = d.id; });
 
+/* ✅ 서버가 내려주는 전체 스냅샷으로 화면 구성 */
 socket.on('game_info', (g)=>{
-  document.getElementById('role').textContent = g.me.role;
-  document.getElementById('topic').textContent = g.topic;
-  document.getElementById('round').textContent = g.round;
+  document.getElementById('role').textContent  = g.me?.role ?? '-';
+  document.getElementById('topic').textContent = g.topic ?? '-';
+  document.getElementById('round').textContent = g.round ?? '-';
 
   const wordWrap = document.getElementById('wordWrap');
-  const wordEl = document.getElementById('word');
-  if (g.me.word){
+  const wordEl   = document.getElementById('word');
+  if (g.me?.word){
     wordEl.textContent = g.me.word;
     wordWrap.style.display = 'block';
   } else {
@@ -76,31 +87,32 @@ socket.on('game_info', (g)=>{
 
   const plist = document.getElementById('plist');
   plist.innerHTML = '';
-  g.players.forEach(p=>{
+  (g.players || []).forEach(p=>{
     const li = document.createElement('li');
     li.className='li';
     li.innerHTML = `${p.name} ${p.speaked? '🗣️':''} ${p.is_dead?'(탈락)':''}`;
     plist.appendChild(li);
   });
 
-  document.getElementById('phase').textContent = g.phase_label;
-  document.getElementById('timer').textContent = mmss(g.seconds_left);
+  document.getElementById('phase').textContent = g.phase_label || '-';
+  document.getElementById('timer').textContent = mmss(g.seconds_left || 0);
 
   // 투표 UI
-  const voteArea = document.getElementById('voteArea');
+  const voteArea    = document.getElementById('voteArea');
   const voteButtons = document.getElementById('voteButtons');
-  const submitVote = document.getElementById('submitVote');
+  const submitVote  = document.getElementById('submitVote');
+
   if (g.phase === 'VOTE' || g.phase === 'REVOTE'){
     voteArea.style.display = 'block';
     voteButtons.innerHTML = '';
     voted = g.my_vote || null;
-    g.players.filter(p=>!p.is_dead).forEach(p=>{
+    (g.players || []).filter(p=>!p.is_dead).forEach(p=>{
       const b = document.createElement('button');
       b.className = 'vote-btn' + (voted===p.id ? ' active':'');
       b.textContent = p.name;
-      b.onclick = ()=>{ 
+      b.onclick = ()=>{
         voted = p.id;
-        [...voteButtons.children].forEach(c=>c.classList.remove('active'));
+        [...voteButtons.children].forEach(c=>c.classList?.remove('active'));
         b.classList.add('active');
       };
       voteButtons.appendChild(b);
@@ -109,28 +121,36 @@ socket.on('game_info', (g)=>{
     submitVote.onclick = ()=>{
       if (!voted) return alert('한 명을 선택하세요!');
       socket.emit('submit_vote', {target_id: voted});
-    }
+    };
   } else {
     voteArea.style.display = 'none';
   }
 
-  // 라이어 맞히기
+  // 라이어 정답 제출
   const guessArea = document.getElementById('guessArea');
-  if (g.phase === 'LIAR_GUESS' && g.me.role==='LIAR'){
+  if (g.phase === 'LIAR_GUESS' && g.me?.role==='LIAR'){
     guessArea.style.display = 'block';
   } else {
     guessArea.style.display = 'none';
   }
 });
 
+/* ⏱ 타이머 틱 */
 socket.on('tick', (sec)=>{
   document.getElementById('timer').textContent = mmss(sec);
 });
 
+/* 🔚 결과 화면 이동 */
 socket.on('move_results', ()=>{
   location.href = "{{ url_for('results') }}";
 });
 
+/* 에러 팝업 */
+socket.on('error_msg', (e)=>{
+  alert(e?.msg || '에러가 발생했어요.');
+});
+
+/* 정답 제출 */
 document.getElementById('submitGuess')?.addEventListener('click', ()=>{
   const val = document.getElementById('guessInput').value.trim();
   if (!val) return alert('정답을 입력하세요!');
