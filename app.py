@@ -9,7 +9,7 @@ HOST_CODE = os.getenv("HOST_CODE", "BOM")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev-secret")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 # ---- In-memory state (단일 로비/단일 게임) ----
 PLAYERS = {}  # sid -> {id, name, is_host, score, role, word, alive, spoke}
