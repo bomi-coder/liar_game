@@ -9,7 +9,7 @@ HOST_CODE = os.getenv("HOST_CODE", "BOM")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev-secret")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # ---- In-memory state (단일 로비/단일 게임) ----
 PLAYERS = {}  # sid -> {id, name, is_host, score, role, word, alive, spoke}
@@ -414,3 +414,4 @@ def liar_guess(data):
 @socketio.on('get_scores')
 def get_scores():
     emit('scores', {"players":[{"name":p["name"],"score":p["score"]} for p in PLAYERS.values()]})
+
