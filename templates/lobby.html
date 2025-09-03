@@ -22,28 +22,37 @@
   </div>
 
   <script>
-    const socket = io();
-    const playersDiv = document.getElementById('players');
-    const startBtn = document.getElementById('startBtn');
+  const socket = io();
+  const playersDiv = document.getElementById('players');
+  const startBtn = document.getElementById('startBtn');
 
-    socket.on('connect', () => {
-      // 세션 기반: 이름/코드 제출은 HTTP로 완료됨. 소켓에는 join 이벤트로 이름 재전송 필요 없음
-      fetch('/game', {method:'HEAD'}); // 세션 워밍업
-      // 로비에서는 별도 join 안 해도 됨(서버에서 connect 시 ROOM 가입)
+  socket.on('connect', () => {
+    // 세션에 저장된 이름/호스트 여부를 이용해 로비에서도 join!
+    socket.emit('join', {
+      name: "{{ session.get('name','') }}",
+      host_code: {{ '\"' + ( 'BOM' ) + '\"' if is_host else '\"\"' }}
     });
+  });
 
-    socket.on('state', (s) => {
-      const html = ['<h3>접속자</h3><ul>'];
-      for (const p of s.players) {
-        html.push(`<li>${p.name} (점수 ${p.score})</li>`);
-      }
-      html.push('</ul>');
-      playersDiv.innerHTML = html.join('');
-    });
+  socket.on('join_ok', (d) => {
+    // 필요하면 여기서 호스트 여부에 따라 버튼 노출 제어 가능
+    if (startBtn) startBtn.disabled = false;
+  });
 
-    if (startBtn) {
-      startBtn.onclick = () => socket.emit('start_game');
-    }
+  socket.on('error', (e) => {
+    alert(e.msg || '에러가 발생했어요.');
+  });
+
+  socket.on('state', (s) => {
+    const html = ['<h3>접속자</h3><ul>'];
+    for (const p of s.players) html.push(`<li>${p.name} (점수 ${p.score})</li>`);
+    html.push('</ul>');
+    playersDiv.innerHTML = html.join('');
+  });
+
+  if (startBtn) {
+    startBtn.onclick = () => socket.emit('start_game');
+  }
   </script>
 </body>
 </html>
