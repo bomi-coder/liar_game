@@ -11,6 +11,9 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev-secret")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
+# ---- 상수: 모든 참가자가 합류하는 공용 룸 ----
+ROOM = "global_room"
+
 # ---- In-memory state (단일 로비/단일 게임) ----
 PLAYERS = {}  # sid -> {id, name, is_host, score, role, word, alive, spoke}
 PLAYER_SEQ = []  # 고정 순서
@@ -84,6 +87,11 @@ WORDS_DB = {
            "박쥐", "설국열차", "베테랑", "신과함께-죄와 벌", "신과함께-인과 연", "클래식", "엽기적인 그녀", "건축학개론", "엽문", "전우치", "웰컴 투 동막골",
            "태극기 휘날리며", "실미도", "쉬리", "공동경비구역 JSA", "혈의 누", "장화, 홍련", "범죄도시", "범죄도시2", "범죄도시3", "검사외전", "럭키", "청년경찰",
            "은밀하게 위대하게", "말아톤", "우리들의 행복한 시간", "완득이", "과속스캔들", "써니", "건축학개론", "늑대소년"],
+    "만화영화": ["포켓몬스터", "도라에몽", "짱구는 못말려", "명탐정 코난", "원피스",
+              "나루토", "드래곤볼", "슬램덩크", "귀멸의 칼날", "진격의 거인", "하이큐", "블리치", "체인소맨", "스파이 패밀리", "원펀맨", "강철의 연금술사", "유희왕", "세일러문", "카드캡터 체리", "디지몬 어드벤처",
+              "미키마우스", "도날드 덕", "톰과 제리", "스폰지밥", "심슨가족", "피노키오", "알라딘", "라이온킹", "인어공주", "겨울왕국", "주토피아", "코코", "모아나", "토이 스토리", "몬스터 주식회사",
+              "슈렉", "쿵푸팬더", "마다가스카", "니모를 찾아서", "월-E", "업", "빅 히어로", "라푼젤", "뮬란", "헤라클레스",
+              "천공의 성 라퓨타", "센과 치히로의 행방불명", "하울의 움직이는 성", "이웃집 토토로", "모노노케 히메"],
     "장소": ["학교", "병원", "공원", "도서관", "카페", "식당", "영화관", "놀이공원", "동물원", "수족관",
             "미술관", "박물관", "시장", "백화점", "마트", "편의점", "공항", "기차역", "버스터미널", "지하철역",
             "체육관", "수영장", "헬스장", "노래방", "PC방", "볼링장", "경기장", "극장", "교회", "사찰",
@@ -97,10 +105,10 @@ def now():
     return int(time.time())
 
 def broadcast_state():
-    emit('state', {
+    socketio.emit('state', {
         "players": [{"id": sid, "name": p["name"], "is_host": p.get("is_host", False)} for sid,p in PLAYERS.items()],
         "round": ROUND
-    }, broadcast=True)
+    }, to=ROOM)
 
 def phase_seconds_left():
     return max(0, PHASE_END_TS - now())
@@ -193,7 +201,7 @@ def next_round_or_finish():
         p["spoke"] = False
     if ROUND > MAX_ROUND:
         # 끝
-        socketio.emit('move_results', broadcast=True)
+        socketio.emit('move_results', to=ROOM)
         return False
     assign_roles_and_words()
     set_phase("HINT", 30)  # 첫 발언 30초
@@ -240,7 +248,7 @@ def scoring(liar_caught, liar_guessed_correct):
 def ticker():
     # 초단위 카운트다운 브로드캐스트
     while phase_seconds_left() > 0:
-        socketio.emit('tick', phase_seconds_left(), broadcast=True)
+        socketio.emit('tick', phase_seconds_left(), to=ROOM)
         socketio.sleep(1)
     # 시간 만료 시 자동 진행
     with LOCK:
@@ -273,7 +281,7 @@ def auto_advance():
                 set_phase("SCORE", 5)
         else:
             # 동률 → 동률자 추가발언 30초 후 재투표
-            socketio.server.manager.emit('tie_info', {'ties': ties}, broadcast=True)
+            socketio.emit('tie_info', {'ties': ties}, to=ROOM)
             set_phase("TIE_SPEECH", 30)
 
     elif PHASE == "TIE_SPEECH":
@@ -281,9 +289,7 @@ def auto_advance():
         set_phase("REVOTE", 45)
 
     elif PHASE == "REVOTE":
-        # 직전 tie 후보만 유효
-        # (간단하게 VOTES에 남은 대상들 중 상위 동률자 집합 추적 없이, 서버 메모리에 저장해둘 수도 있음.
-        # 여기서는 전체 재집계 후 동일 로직으로 처리)
+        # 직전 tie 후보만 유효 (단순화)
         target, ties = resolve_vote()
         liar_sid = next((sid for sid,p in PLAYERS.items() if p["role"]=="LIAR"), None)
         if target and target == liar_sid:
@@ -349,6 +355,7 @@ def on_join(data):
             }
             if sid not in PLAYER_SEQ:
                 PLAYER_SEQ.append(sid)
+    join_room(ROOM)  # 공용 룸 합류
     emit('join_ok', {"is_host": is_host})
     broadcast_state()
 
@@ -358,7 +365,9 @@ def on_disconnect():
     with LOCK:
         if sid in PLAYERS:
             del PLAYERS[sid]
-            if sid in PLAYER_SEQ: PLAYER_SEQ.remove(sid)
+            if sid in PLAYER_SEQ:
+                PLAYER_SEQ.remove(sid)
+    leave_room(ROOM)  # 공용 룸 이탈
     broadcast_state()
 
 @socketio.on('start_game')
@@ -377,7 +386,7 @@ def start_game():
             p["score"] = 0
         ok = next_round_or_finish()
         if ok:
-            socketio.emit('move_game', broadcast=True)
+            socketio.emit('move_game', to=ROOM)
 
 @socketio.on('sync_game')
 def sync_game():
@@ -418,5 +427,3 @@ def liar_guess(data):
 @socketio.on('get_scores')
 def get_scores():
     emit('scores', {"players":[{"name":p["name"],"score":p["score"]} for p in PLAYERS.values()]})
-
-
