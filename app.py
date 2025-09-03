@@ -347,18 +347,51 @@ def on_join(data):
     if not name:
         emit('error_msg', {"msg":"이름이 필요해요!"})
         return
-    sid = request.sid
-    is_host = ((data or {}).get('host_code','') == HOST_CODE)
+
+    new_sid = request.sid
+    incoming_host = ((data or {}).get('host_code','') == HOST_CODE)
+
     with LOCK:
-        if sid not in PLAYERS:
-            PLAYERS[sid] = {
-                "id": sid, "name": name, "is_host": is_host, "score": 0,
-                "role": None, "word": None, "alive": True, "spoke": False
+        # 1) 같은 이름의 기존 플레이어가 있으면 그 데이터를 새 SID로 이전
+        old_sid = None
+        for sid, p in list(PLAYERS.items()):
+            if p.get('name') == name:
+                old_sid = sid
+                break
+
+        if old_sid:
+            pdata = PLAYERS.pop(old_sid)
+            # 기존 정보(역할/제시어/점수/생존여부 등) 그대로 유지
+            pdata['id'] = new_sid
+            # 호스트 여부는 기존값 유지(혹은 새 코드가 맞으면 True)
+            pdata['is_host'] = pdata.get('is_host', False) or incoming_host
+            PLAYERS[new_sid] = pdata
+
+            # 순서 리스트에서 SID 교체
+            if old_sid in PLAYER_SEQ:
+                idx = PLAYER_SEQ.index(old_sid)
+                PLAYER_SEQ[idx] = new_sid
+            else:
+                PLAYER_SEQ.append(new_sid)
+
+            # 기존 투표 키 이전(있다면)
+            if old_sid in VOTES:
+                VOTES[new_sid] = VOTES.pop(old_sid)
+
+        else:
+            # 2) 완전 신규 접속
+            PLAYERS[new_sid] = {
+                "id": new_sid, "name": name,
+                "is_host": incoming_host, "score": 0,
+                "role": None, "word": None,
+                "alive": True, "spoke": False
             }
-            if sid not in PLAYER_SEQ:
-                PLAYER_SEQ.append(sid)
-    join_room(ROOM)  # 공용 룸 합류
-    emit('join_ok', {"is_host": is_host})
+            if new_sid not in PLAYER_SEQ:
+                PLAYER_SEQ.append(new_sid)
+
+    # 공용 룸 합류 및 UI 갱신
+    join_room(ROOM)
+    emit('join_ok', {"is_host": PLAYERS[new_sid].get("is_host", False)})
     broadcast_state()
 
 @socketio.on('disconnect')
@@ -429,4 +462,5 @@ def liar_guess(data):
 @socketio.on('get_scores')
 def get_scores():
     emit('scores', {"players":[{"name":p["name"],"score":p["score"]} for p in PLAYERS.values()]})
+
 
