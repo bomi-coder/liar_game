@@ -2,56 +2,111 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>라이어 게임</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🫥 라이어 게임</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
 </head>
-<body>
-  <!-- 인트로 화면 -->
-  <div id="intro" class="section">
-    <h1>라이어 게임</h1>
-    <h3>made by. bom</h3>
-    <input type="text" id="nameInput" placeholder="이름을 입력하세요" />
-    <button id="joinBtn">게임 로비 입장</button>
-  </div>
+<body class="bg">
+  <div class="app-wrap">
+    <header class="app-header">
+      <div class="title">🫥 라이어 게임</div>
+      <div class="subtitle">made by. bom</div>
+    </header>
 
-  <!-- 로비 화면 -->
-  <div id="lobby" class="section" style="display:none;">
-    <h2>게임 로비</h2>
-    <ul id="playerList"></ul>
-    <input type="text" id="hostCodeInput" placeholder="호스트 코드 입력" />
-    <button id="hostBtn">호스트 권한 얻기</button>
-    <button id="startBtn" style="display:none;">게임 시작</button>
-  </div>
-
-  <!-- 게임 화면 -->
-  <div id="game" class="section" style="display:none;">
-    <h2 id="roundInfo"></h2>
-    <div id="roleInfo"></div>
-    <div id="timer"></div>
-    <div id="discussion"></div>
-    <div id="voteArea"></div>
-    <div id="voteResults"></div>
-    <div id="finalResults"></div>
-
-    <!-- 발언자 팝업 -->
-    <div id="speakerPopup" class="popup" style="display:none;">
-      <div class="popup-content">
-        <p>발언 차례</p>
-        <div id="speakerName" class="speaker-name-badge"></div>
+    <!-- 인트로 -->
+    <section id="intro" class="card section show">
+      <div class="stack gap16">
+        <label for="nameInput" class="label">닉네임</label>
+        <input type="text" id="nameInput" class="input" placeholder="이름을 입력하세요" />
+        <button id="joinBtn" class="btn primary">게임 로비 입장</button>
       </div>
-    </div>
+    </section>
 
-    <!-- 호스트 전용 컨트롤 -->
-    <div id="hostControls" class="host-controls" style="display:none;">
-      <button id="btnStartRound">라운드 시작</button>
-      <button id="btnNextSpeaker">다음 발언자</button>
-      <button id="btnStartDiscussion">토론 시작</button>
-      <button id="btnStartVote">투표 시작</button>
-      <button id="btnShowResults">합계 공개</button>
-    </div>
+    <!-- 로비 -->
+    <section id="lobby" class="card section">
+      <div class="grid2 gap16">
+        <div class="stack gap12">
+          <h2 class="h2">🎉 게임 로비</h2>
+          <ul id="playerList" class="list"></ul>
+        </div>
+        <div class="stack gap12">
+          <label class="label" for="hostCodeInput">호스트 코드</label>
+          <div class="row gap8">
+            <input type="password" id="hostCodeInput" class="input" placeholder="호스트 코드 입력" />
+            <button id="hostBtn" class="btn">권한 얻기</button>
+          </div>
+          <div class="row gap8">
+            <button id="startBtn" class="btn success hide">게임 시작</button>
+            <button id="resetBtn" class="btn danger hide">게임 리셋</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 게임 -->
+    <section id="game" class="section grid-game">
+      <div class="stack gap16">
+        <div class="card stack gap10">
+          <div id="roundInfo" class="round-title">Round -</div>
+          <div id="roleInfo" class="role-info">내 역할/주제/제시어</div>
+        </div>
+
+        <div class="timer-card card">
+          <div class="timer-label">⏰ 남은 시간</div>
+          <div id="timer" class="timer-value">--</div>
+        </div>
+
+        <div id="winBanner" class="win-banner hide">
+          <div id="winText">승리!</div>
+          <div id="winKeyword" class="win-keyword"></div>
+        </div>
+
+        <div id="speakerPopup" class="popup hide">
+          <div class="popup-content stack gap10">
+            <div id="preHint" class="pre-hint hide">제시어에 대한 힌트를 발언해주세요</div>
+            <div id="speakerName" class="speaker-name-badge"></div>
+            <button id="closePopup" class="btn">닫기</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack gap16">
+        <div class="card stack gap12" id="votePanel">
+          <div class="row gap8 between">
+            <div class="h3">🗳️ 투표</div>
+            <div id="voteRoundTag" class="tag">-</div>
+          </div>
+          <div id="voteArea" class="vote-grid"></div>
+        </div>
+
+        <div class="card stack gap10">
+          <div class="row gap8">
+            <button class="chip active" id="tabR1">1차 현황</button>
+            <button class="chip" id="tabR2">2차 현황</button>
+          </div>
+          <div id="voteStatus" class="status-list"></div>
+        </div>
+
+        <div id="hostControls" class="card stack gap10 hide">
+          <div class="h3">🧑‍✈️ 호스트 컨트롤</div>
+          <div class="grid3 gap8">
+            <button id="btnStartRound" class="btn">라운드 시작</button>
+            <button id="btnNextSpeaker" class="btn">다음 발언자</button>
+            <button id="btnStartDiscussion" class="btn">토론 시작</button>
+            <button id="btnStartVote" class="btn">투표 시작</button>
+            <button id="btnShowResults" class="btn">합계 공개</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script src="/static/client.js"></script>
 </body>
 </html>
+
+<!-- build_ts:1756943897 -->
