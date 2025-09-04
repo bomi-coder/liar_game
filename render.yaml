@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: liar-game
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k eventlet -w 1 app:app
+    envVars:
+      - key: HOST_CODE
+        value: "9999"
+      - key: SECRET_KEY
+        generateValue: true

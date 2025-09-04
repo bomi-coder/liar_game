@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
+
+:root{
+  --bg: #fff8fe;
+  --card: #ffffff;
+  --ink: #222;
+  --muted: #6b6b6b;
+  --primary: #ff7eb6;
+  --accent: #7eafff;
+  --secondary: #ffd66e;
+  --danger: #ff8a7e;
+  --ok: #72e0a8;
+  --shadow: 0 10px 30px rgba(0,0,0,0.08);
+  --radius: 18px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; font-family: 'Nunito', system-ui, -apple-system, Segoe UI, Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; color:var(--ink); background: var(--bg) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width=\"160\" height=\"160\" viewBox=\"0 0 100 100\"><text x=\"10\" y=\"60\" font-size=\"60\">🌈</text></svg>') repeat; background-size: 140px 140px;}
+.app-wrap { max-width: 1100px; margin: 20px auto; padding: 10px; }
+
+.card { background: var(--card); padding: 20px; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; }
+.center { max-width: 520px; margin: 60px auto; text-align: center; }
+
+.title { display:flex; align-items:center; gap:12px; justify-content:center; margin-bottom:12px; }
+.title .emoji { font-size: 28px; }
+.title h1, .title h2 { margin:0; }
+.subtitle { color: var(--muted); margin-top: -6px; }
+
+.mini { justify-content: start; }
+
+.name-form { display:flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+input[type=text], input[type=password] {
+  padding: 12px 14px; border-radius: 12px; border: 2px solid #f1e6ff; outline: none;
+  font-size: 16px; background: #fff; transition: .2s;
+}
+input:focus { border-color: var(--accent); box-shadow: 0 0 0 6px rgba(126,175,255,.15); }
+button { padding: 12px 14px; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; }
+button.primary { background: var(--primary); color:#fff; }
+button.accent { background: var(--accent); color:#fff; }
+button.secondary { background: var(--secondary); }
+button.danger { background: var(--danger); color:#fff; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+.pill { background: #f4f7ff; color:#3f51b5; padding: 8px 12px; border-radius: 999px; display:inline-block; margin: 12px 0; }
+
+.list-title { margin: 12px 0 8px; }
+.bubble-list { list-style: none; padding:0; margin:0; display:flex; flex-wrap: wrap; gap:8px; }
+.bubble-list li { background: #fff6fd; border: 1.5px dashed #ffc2e8; border-radius: 999px; padding: 8px 12px; }
+.bubble-list.small li { font-size: 14px; }
+.me strong { color: #9c27b0; }
+.grid { display:grid; grid-template-columns: 1fr; gap: 16px; }
+@media(min-width: 980px){ .grid { grid-template-columns: 1.3fr 0.7fr; } }
+
+.role-box { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
+.badge { background:#eef8ff; color:#1565c0; padding:6px 10px; border-radius: 999px; }
+
+.phase { margin-top:12px; background:#fff3e8; padding:10px 12px; border-radius: 12px; }
+.phase-line { margin: 4px 0; }
+
+.timer.big { font-size: 56px; font-weight: 900; text-align: center; letter-spacing: 1px; margin: 10px 0 4px; }
+
+.speaking h3, .vote-section h3 { margin-bottom: 6px; }
+#order-list { padding-left: 18px; }
+.current { margin-top: 6px; padding: 6px 10px; background:#f0fff6; border-radius: 10px; border: 1px solid #b8f1d1; }
+
+.vote-grid { display:flex; flex-wrap: wrap; gap: 10px; }
+.vote-btn { background:#eef8ff; border:2px solid #d0e6ff; }
+.vote-btn.voted { background:#72e0a8; color:#fff; }
+
+.host-actions{ display:flex; gap:8px; align-items:center; }
+.host-buttons{ display:flex; flex-wrap: wrap; gap:8px; }
+
+.host-only { display:none; }
+.host-enabled .host-only { display:block; }
+
+/* Modal */
+.modal{ position: fixed; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,.4); }
+.modal.hidden{ display: none; }
+.modal-content{ background: #fff; padding: 18px; border-radius: 16px; width: 90%; max-width: 360px; box-shadow: var(--shadow); }
+.modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top: 10px; }
+
+/* Pop badge */
+#pop{ position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: #000; color:#fff; padding: 10px 16px; border-radius: 12px; opacity: 0.9; }
+.hidden{ display:none; }

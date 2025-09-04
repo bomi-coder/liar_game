@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid">
+  <div class="card">
+    <div class="title mini">
+      <span class="emoji">🎮💬</span><h2>게임 화면</h2>
+      <div class="me">나: <strong>{{ name }}</strong></div>
+    </div>
+
+    <div id="role-box" class="role-box">
+      <div>내 역할: <span id="role" class="badge">대기중…</span></div>
+      <div>주제: <span id="topic" class="badge">-</span></div>
+      <div>제시어: <span id="keyword" class="badge">-</span></div>
+    </div>
+
+    <div id="phase-box" class="phase">
+      <div class="phase-line">라운드: <strong id="round">-</strong></div>
+      <div class="phase-line">현재 단계: <strong id="phase">-</strong></div>
+    </div>
+
+    <div class="timer big" id="timer">00:00</div>
+
+    <div class="speaking">
+      <h3>발언 순서 🎤</h3>
+      <ol id="order-list"></ol>
+      <div id="current-speaker" class="current">현재 발언자: <strong>-</strong></div>
+    </div>
+
+    <div class="vote-section">
+      <h3>공개 투표 🗳️</h3>
+      <div id="vote-grid" class="vote-grid"></div>
+      <div class="vote-tally">
+        <h4>투표 현황</h4>
+        <ul id="vote-log" class="bubble-list small"></ul>
+      </div>
+    </div>
+
+    <div id="pop" class="pop hidden">누가누가~ ✨</div>
+  </div>
+
+  <div class="card host-only" id="host-panel">
+    <div class="title mini"><span class="emoji">🛠️</span><h2>호스트 패널</h2></div>
+    <div class="host-buttons">
+      <button class="primary" id="btn-hint1">1차 힌트 시작 (15초/인)</button>
+      <button class="primary" id="btn-discuss">전체 토론 시작 (2분)</button>
+      <button class="primary" id="btn-vote1">1차 투표 시작</button>
+      <button class="primary" id="btn-hint2">2차 힌트 시작 (15초/인)</button>
+      <button class="primary" id="btn-vote2">2차 투표 시작</button>
+      <button class="danger" id="btn-close1">1차 투표 마감</button>
+      <button class="danger" id="btn-close2">2차 투표 마감</button>
+      <button class="secondary" id="btn-next-turn">다음 발언자 ▶</button>
+      <button class="accent" id="btn-next-round">다음 라운드/최종 결과</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="title mini"><span class="emoji">🏅</span><h2>점수판</h2></div>
+    <ul id="scoreboard" class="bubble-list"></ul>
+  </div>
+</div>
+{% endblock %}

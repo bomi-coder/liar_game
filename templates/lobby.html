@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="title mini">
+    <span class="emoji">🧸✨</span>
+    <h2>게임 로비</h2>
+    <div class="me">나: <strong>{{ name }}</strong></div>
+  </div>
+
+  <div class="host-actions">
+    <button id="claim-host-btn" class="secondary">호스트권한얻기 🔑</button>
+    <button id="start-btn" class="primary" disabled>게임 시작 ▶️</button>
+  </div>
+
+  <div id="host-info" class="pill">호스트: 대기중…</div>
+
+  <h3 class="list-title">현재 접속자 목록 👥</h3>
+  <ul id="player-list" class="bubble-list"></ul>
+
+  <!-- Host modal -->
+  <div id="host-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>호스트 코드 입력 🔒</h3>
+      <input id="host-code" type="password" placeholder="코드를 입력하세요">
+      <div class="modal-actions">
+        <button id="host-cancel" class="secondary">취소</button>
+        <button id="host-submit" class="primary">호스트 되기</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card center">
+  <div class="title">
+    <span class="emoji">🕵️‍♂️🤫🎉</span>
+    <h1>라이어 게임</h1>
+    <p class="subtitle">made by. bom</p>
+  </div>
+
+  <form class="name-form" action="{{ url_for('join') }}" method="post">
+    <label for="name">닉네임을 입력하세요 ✍️</label>
+    <input id="name" name="name" type="text" placeholder="예: 두농" value="{{ name or '' }}" required>
+    <button id="enter-btn" type="submit" disabled>게임 로비 입장 🚪</button>
+  </form>
+</div>
+
+<script>
+  const nameInput = document.getElementById('name');
+  const enterBtn = document.getElementById('enter-btn');
+  function toggle(){
+    enterBtn.disabled = !(nameInput.value.trim().length > 0);
+  }
+  nameInput.addEventListener('input', toggle);
+  toggle();
+</script>
+{% endblock %}

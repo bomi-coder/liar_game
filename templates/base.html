@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>라이어 게임</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <!-- Socket.IO client via CDN to avoid 400 errors on /socket.io/socket.io.js -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-WyGvJYtXkUa4/0zUoH6k2w2c8K0sYx9wIeVg+2qYqkW2r2zvO/2H1jV6YQ4v3b9y" crossorigin="anonymous"></script>
+  <script>
+    window.APP = {
+      name: "{{ name|e if name else '' }}"
+    };
+  </script>
+</head>
+<body>
+  <div class="app-wrap">
+    {% block content %}{% endblock %}
+  </div>
+  <script src="{{ url_for('static', filename='client.js') }}"></script>
+</body>
+</html>
