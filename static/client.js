@@ -1,7 +1,7 @@
 // 소켓 연결
 const socket = io();
 
-// 도우미
+// 도우미 상태
 let mySid = null;
 let isHost = false;
 let currentVoteRound = null; // 1 or 2
@@ -11,7 +11,7 @@ let voteLogs = {1: {}, 2: {}};
 const $ = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
 
-// 섹션 전환을 인라인 display까지 강제로 제어(초기 로딩/캐시 꼬임 방지)
+// 섹션 전환: 인라인 display까지 강제 (CSS/캐시 꼬임 방지)
 function hardShowSection(id){
   const ids = ["intro","lobby","game"];
   ids.forEach(k=>{
@@ -21,24 +21,18 @@ function hardShowSection(id){
     el.classList.toggle("show", k===id);
   });
 }
-
-// 기존 showSection을 하드 버전으로 교체
 function showSection(id){ hardShowSection(id); }
 
-// 소켓 연결 여부로 “로비 입장” 버튼 활성/비활성
+// “로비 입장” 버튼을 소켓 연결 시에만 활성화
 const joinBtn = $("#joinBtn");
 function setJoinEnabled(on){
   if(!joinBtn) return;
   joinBtn.disabled = !on;
-  if(on) { joinBtn.classList.remove("disabled"); }
-  else { joinBtn.classList.add("disabled"); }
+  if(on) joinBtn.classList.remove("disabled"); else joinBtn.classList.add("disabled");
 }
-
-// 초기 상태: 인트로만 보이게
 hardShowSection("intro");
 setJoinEnabled(false);
 
-// 소켓 연결 이벤트
 socket.on("connect", ()=> setJoinEnabled(true));
 socket.on("disconnect", ()=> setJoinEnabled(false));
 
@@ -46,29 +40,35 @@ socket.on("disconnect", ()=> setJoinEnabled(false));
 $("#joinBtn").onclick = () => {
   const name = $("#nameInput").value.trim();
   if(!name){ alert("이름을 입력하세요"); return; }
-  if(!socket.connected){
-    alert("서버 연결이 일시적으로 끊겼습니다. 잠시 후 다시 시도하세요.");
-    return;
-  }
+  if(!socket.connected){ alert("서버 연결을 확인해주세요."); return; }
   socket.emit("join", {name});
 };
 
-// 로비
+// 로비 & 호스트 권한
 function updateHostControls(){
+  // 로비 영역 버튼(게임 시작)은 호스트만
+  const startBtn = $("#startBtn");
+  if(startBtn){
+    if(isHost) startBtn.classList.remove("hide");
+    else startBtn.classList.add("hide");
+  }
+  // 게임 화면의 호스트 컨트롤바 + 리셋 버튼도 호스트만
+  const hostControls = $("#hostControls");
+  const btnResetGame = $("#btnResetGame");
   if(isHost){
-    $("#startBtn").classList.remove("hide");
-    $("#resetBtn").classList.remove("hide");
-    $("#hostControls").classList.remove("hide");
+    if(hostControls) hostControls.classList.remove("hide");
+    if(btnResetGame) btnResetGame.classList.remove("hide");
   }else{
-    $("#startBtn").classList.add("hide");
-    $("#resetBtn").classList.add("hide");
-    $("#hostControls").classList.add("hide");
+    if(hostControls) hostControls.classList.add("hide");
+    if(btnResetGame) btnResetGame.classList.add("hide");
   }
 }
 
-socket.on("joined", d => { mySid = d.sid; showSection("lobby"); });
+socket.on("joined", d => { mySid = d.sid; showSection("lobby"); updateHostControls(); });
+
 socket.on("player_list", list => {
-  const ul = $("#playerList"); ul.innerHTML="";
+  const ul = $("#playerList"); if(!ul) return;
+  ul.innerHTML="";
   list.forEach(p=>{
     const li = document.createElement("li");
     li.className="pill";
@@ -81,21 +81,28 @@ $("#hostBtn").onclick = () => {
   socket.emit("become_host", {code: $("#hostCodeInput").value.trim()});
 };
 socket.on("host_ok", d => {
-  if(d.ok){ isHost=true; updateHostControls(); }
-  else alert("호스트 코드가 틀렸습니다.");
+  if(d.ok){
+    isHost = true;
+    updateHostControls(); // 로비에서 노출
+  }else{
+    alert("호스트 코드가 틀렸습니다.");
+  }
 });
 
-$("#startBtn").onclick = () => socket.emit("start_game");
-$("#resetBtn").onclick = () => socket.emit("reset_game");
+// 로비의 “게임 시작”
+$("#startBtn")?.addEventListener("click", ()=> socket.emit("start_game"));
 
-// 게임
+// 게임 시작
 socket.on("game_start", () => {
   showSection("game");
   $("#winBanner").classList.add("hide");
   resetVotePanel();
   voteSelections={1:null,2:null}; voteLogs={1:{},2:{}};
   renderVoteStatus(1);
+  updateHostControls(); // 게임 화면에서도 호스트 전용 컨트롤 노출
 });
+
+// 역할/라운드
 socket.on("role_assignment", d => {
   $("#roleInfo").textContent = `내 역할: ${d.role} · 주제: ${d.subject} · 제시어: ${d.keyword}`;
 });
@@ -123,7 +130,7 @@ socket.on("timer_reset", d => { $("#timer").textContent = d.seconds; });
 socket.on("timer_tick", d => { $("#timer").textContent = d.remaining; });
 socket.on("timer_done", () => { $("#timer").textContent = "0"; });
 
-// 투표 패널 제어
+// 투표 패널
 function setTimerLabel(round){ $("#voteRoundTag").textContent = round ? `${round}차` : "-"; }
 function resetVotePanel(){ $("#voteArea").innerHTML=""; setTimerLabel(null); }
 socket.on("hide_vote_panel", ()=> resetVotePanel());
@@ -135,7 +142,7 @@ socket.on("vote_start", d => {
   renderVoteGrid(d.candidates);
 });
 
-// 투표 버튼 1인1표 UI + 서버 송신
+// 1인 1표 UI + 서버 전송
 function renderVoteGrid(cands){
   const area = $("#voteArea"); area.innerHTML="";
   cands.forEach(c=>{
@@ -203,9 +210,11 @@ socket.on("game_over", d => {
 $("#tabR1").onclick = ()=>{ $(".chip.active").classList.remove("active"); $("#tabR1").classList.add("active"); renderVoteStatus(1); };
 $("#tabR2").onclick = ()=>{ $(".chip.active").classList.remove("active"); $("#tabR2").classList.add("active"); renderVoteStatus(2); };
 
-// 호스트 컨트롤 → 서버
-$("#btnStartRound").onclick     = ()=>{ socket.emit("manual_next_phase", {phase:"round_start"}); socket.emit("hide_vote_panel"); };
-$("#btnNextSpeaker").onclick    = ()=>{ socket.emit("manual_next_phase", {phase:"next_speaker"}); socket.emit("hide_vote_panel"); };
-$("#btnStartDiscussion").onclick= ()=> socket.emit("manual_next_phase", {phase:"discussion"});
-$("#btnStartVote").onclick      = ()=> socket.emit("manual_next_phase", {phase:"vote"});
-$("#btnShowResults").onclick    = ()=> socket.emit("manual_next_phase", {phase:"results"});
+// 🧑‍✈️ 호스트 컨트롤: 버튼 동작 이벤트 (서버에 이미 핸들러 있음)
+$("#btnStartRound").onclick      = ()=>{ socket.emit("manual_next_phase", {phase:"round_start"}); socket.emit("hide_vote_panel"); };
+$("#btnNextSpeaker").onclick     = ()=>{ socket.emit("manual_next_phase", {phase:"next_speaker"}); socket.emit("hide_vote_panel"); };
+$("#btnStartDiscussion").onclick = ()=> socket.emit("manual_next_phase", {phase:"discussion"});
+$("#btnStartVote").onclick       = ()=> socket.emit("manual_next_phase", {phase:"vote"});
+$("#btnShowResults").onclick     = ()=> socket.emit("manual_next_phase", {phase:"results"});
+$("#btnResetGame").onclick       = ()=> socket.emit("reset_game"); // 🔁 게임 리셋 (게임 화면 안)
+
