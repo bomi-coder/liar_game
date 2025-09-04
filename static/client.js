@@ -46,6 +46,15 @@ if(startBtn){
   startBtn.onclick = ()=> socket.emit("start_game", {});
 }
 
+const hostBtn = $("#hostBtn");
+if(hostBtn){
+  hostBtn.onclick = ()=>{
+    const code = $("#hostCodeInput").value.trim();
+    if(!code){ alert("코드를 입력하세요"); return; }
+    socket.emit("become_host", {code});
+  };
+}
+
 // =============================
 // socket.io 이벤트
 // =============================
@@ -71,6 +80,16 @@ socket.on("phase", data=>{
     showSection("game");
   }
   if(data.phase === "game_end"){ alert("게임 종료!"); showSection("intro"); }
+});
+
+socket.on("host_ok", data=>{
+  if(data.ok){
+    alert("호스트 권한 획득!");
+    isHost = true;
+    startBtn.style.display = "";
+  } else {
+    alert("호스트 코드가 올바르지 않습니다.");
+  }
 });
 
 // ✅ 타이머 UI 업데이트
