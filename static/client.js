@@ -1,17 +1,14 @@
-// 소켓 연결
 const socket = io();
 
-// 도우미 상태
 let mySid = null;
 let isHost = false;
 let currentVoteRound = null; // 1 or 2
 let voteSelections = {1: null, 2: null};
-let voteLogs = {1: {}, 2: {}};
+let voteLogs = {1: [], 2: []}; // ✅ [{voter_name,target_name}, ...]
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
 
-// 섹션 전환: 인라인 display까지 강제 (CSS/캐시 꼬임 방지)
 function hardShowSection(id){
   const ids = ["intro","lobby","game"];
   ids.forEach(k=>{
@@ -23,7 +20,6 @@ function hardShowSection(id){
 }
 function showSection(id){ hardShowSection(id); }
 
-// “로비 입장” 버튼을 소켓 연결 시에만 활성화
 const joinBtn = $("#joinBtn");
 function setJoinEnabled(on){
   if(!joinBtn) return;
@@ -36,7 +32,6 @@ setJoinEnabled(false);
 socket.on("connect", ()=> setJoinEnabled(true));
 socket.on("disconnect", ()=> setJoinEnabled(false));
 
-// 인트로 → join
 $("#joinBtn").onclick = () => {
   const name = $("#nameInput").value.trim();
   if(!name){ alert("이름을 입력하세요"); return; }
@@ -44,23 +39,19 @@ $("#joinBtn").onclick = () => {
   socket.emit("join", {name});
 };
 
-// 로비 & 호스트 권한
 function updateHostControls(){
-  // 로비 영역 버튼(게임 시작)은 호스트만
   const startBtn = $("#startBtn");
   if(startBtn){
-    if(isHost) startBtn.classList.remove("hide");
-    else startBtn.classList.add("hide");
+    if(isHost) startBtn.classList.remove("hide"); else startBtn.classList.add("hide");
   }
-  // 게임 화면의 호스트 컨트롤바 + 리셋 버튼도 호스트만
   const hostControls = $("#hostControls");
   const btnResetGame = $("#btnResetGame");
   if(isHost){
-    if(hostControls) hostControls.classList.remove("hide");
-    if(btnResetGame) btnResetGame.classList.remove("hide");
+    hostControls?.classList.remove("hide");
+    btnResetGame?.classList.remove("hide");
   }else{
-    if(hostControls) hostControls.classList.add("hide");
-    if(btnResetGame) btnResetGame.classList.add("hide");
+    hostControls?.classList.add("hide");
+    btnResetGame?.classList.add("hide");
   }
 }
 
@@ -81,25 +72,19 @@ $("#hostBtn").onclick = () => {
   socket.emit("become_host", {code: $("#hostCodeInput").value.trim()});
 };
 socket.on("host_ok", d => {
-  if(d.ok){
-    isHost = true;
-    updateHostControls(); // 로비에서 노출
-  }else{
-    alert("호스트 코드가 틀렸습니다.");
-  }
+  if(d.ok){ isHost = true; updateHostControls(); }
+  else{ alert("호스트 코드가 틀렸습니다."); }
 });
 
-// 로비의 “게임 시작”
 $("#startBtn")?.addEventListener("click", ()=> socket.emit("start_game"));
 
-// 게임 시작
 socket.on("game_start", () => {
   showSection("game");
   $("#winBanner").classList.add("hide");
   resetVotePanel();
-  voteSelections={1:null,2:null}; voteLogs={1:{},2:{}};
+  voteSelections={1:null,2:null}; voteLogs={1:[],2:[]};
   renderVoteStatus(1);
-  updateHostControls(); // 게임 화면에서도 호스트 전용 컨트롤 노출
+  updateHostControls();
 });
 
 // 역할/라운드
@@ -110,7 +95,7 @@ socket.on("round_start", d => {
   $("#roundInfo").textContent = `Round ${d.round} / ${d.total_rounds} · 주제: ${d.subject}`;
 });
 
-// 발언 안내 + 팝업 + 모바일 진동
+// 발언 안내 + 팝업 + 진동
 socket.on("pre_hint_notice", d => {
   $("#preHint").classList.remove("hide");
   $("#speakerPopup").classList.remove("hide");
@@ -142,7 +127,7 @@ socket.on("vote_start", d => {
   renderVoteGrid(d.candidates);
 });
 
-// 1인 1표 UI + 서버 전송
+// 1인 1표 UI
 function renderVoteGrid(cands){
   const area = $("#voteArea"); area.innerHTML="";
   cands.forEach(c=>{
@@ -161,20 +146,21 @@ function renderVoteGrid(cands){
   });
 }
 
-// 공개 현황
+// ✅ 공개 현황(닉네임 → 닉네임)
 socket.on("vote_update", d => {
-  voteLogs[d.round] = d.votes||{};
+  voteLogs[d.round] = d.details || [];
   const active = $(".chip.active").id === "tabR2" ? 2 : 1;
   renderVoteStatus(active);
 });
+
 function renderVoteStatus(round){
   const box = $("#voteStatus"); box.innerHTML="";
-  const logs = voteLogs[round] || {};
-  if(!Object.keys(logs).length){ box.innerHTML="<div class='muted'>아직 투표가 없습니다.</div>"; return; }
-  Object.entries(logs).forEach(([voterSid,targetSid])=>{
+  const logs = voteLogs[round] || [];
+  if(logs.length === 0){ box.innerHTML="<div class='muted'>아직 투표가 없습니다.</div>"; return; }
+  logs.forEach(it=>{
     const row = document.createElement("div");
     row.className="status-row";
-    row.textContent = `${voterSid} → ${targetSid}`;
+    row.textContent = `${it.voter_name} → ${it.target_name}`;
     box.appendChild(row);
   });
 }
@@ -210,11 +196,11 @@ socket.on("game_over", d => {
 $("#tabR1").onclick = ()=>{ $(".chip.active").classList.remove("active"); $("#tabR1").classList.add("active"); renderVoteStatus(1); };
 $("#tabR2").onclick = ()=>{ $(".chip.active").classList.remove("active"); $("#tabR2").classList.add("active"); renderVoteStatus(2); };
 
-// 🧑‍✈️ 호스트 컨트롤: 버튼 동작 이벤트 (서버에 이미 핸들러 있음)
+// 🧑‍✈️ 호스트 컨트롤
 $("#btnStartRound").onclick      = ()=>{ socket.emit("manual_next_phase", {phase:"round_start"}); socket.emit("hide_vote_panel"); };
 $("#btnNextSpeaker").onclick     = ()=>{ socket.emit("manual_next_phase", {phase:"next_speaker"}); socket.emit("hide_vote_panel"); };
 $("#btnStartDiscussion").onclick = ()=> socket.emit("manual_next_phase", {phase:"discussion"});
 $("#btnStartVote").onclick       = ()=> socket.emit("manual_next_phase", {phase:"vote"});
+$("#btnEndVote").onclick         = ()=> socket.emit("end_vote");          // ✅ 추가: 투표 종료
 $("#btnShowResults").onclick     = ()=> socket.emit("manual_next_phase", {phase:"results"});
-$("#btnResetGame").onclick       = ()=> socket.emit("reset_game"); // 🔁 게임 리셋 (게임 화면 안)
-
+$("#btnResetGame").onclick       = ()=> socket.emit("reset_game");
