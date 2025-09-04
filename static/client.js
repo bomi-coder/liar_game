@@ -47,13 +47,17 @@ nameInput.addEventListener("input", () => {
 });
 
 // 로비 입장
-lobbyBtn.addEventListener("click", (e) => {
+joinForm.addEventListener("submit", (e) => {
   e.preventDefault();
   myName = nameInput.value.trim();
+  if (!myName) { alert("이름을 입력해 주세요."); return; }
   socket.emit("join", {name: myName});
   $("#intro").style.display = "none";
   lobbySection.style.display = "block";
 });
+
+// 버튼 클릭도 submit 트리거
+lobbyBtn.addEventListener("click", (e) => { e.preventDefault(); joinForm.requestSubmit(); });
 
 // 호스트 코드 제출
 hostCodeBtn.addEventListener("click", () => {
@@ -110,6 +114,10 @@ socket.on("joined", (data) => {
   window.hasJoined = true;
   mySid = data.sid;
   myName = data.name;
+  const intro = document.querySelector("#intro");
+  const lobbySection = document.querySelector("#lobby");
+  if (intro) intro.style.display = "none";
+  if (lobbySection) lobbySection.style.display = "block";
 });
 
 socket.on("player_list", (list) => {
