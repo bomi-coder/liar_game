@@ -69,12 +69,20 @@ socket.on("player_list", list => {
 });
 
 $("#hostBtn").onclick = () => {
-  socket.emit("become_host", {code: $("#hostCodeInput").value.trim()});
+  if (!mySid) {
+    alert("먼저 이름을 입력하고 '게임 로비 입장'으로 접속해 주세요.");
+    return;
+  }
+  // 공백 모두 제거 + trim
+  const raw = $("#hostCodeInput").value || "";
+  const code = raw.trim();           // 앞뒤 공백 제거
+  // 필요시 전체 공백 제거: raw.replace(/\s+/g, "")
+  if (!code) {
+    alert("호스트 코드를 입력해 주세요.");
+    return;
+  }
+  socket.emit("become_host", { code });
 };
-socket.on("host_ok", d => {
-  if(d.ok){ isHost = true; updateHostControls(); }
-  else{ alert("호스트 코드가 틀렸습니다."); }
-});
 
 $("#startBtn")?.addEventListener("click", ()=> socket.emit("start_game"));
 
