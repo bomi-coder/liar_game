@@ -1,4 +1,33 @@
 const socket = io();
+
+// --- visibility & connection safety patch ---
+function hardShowSection(id){
+  const ids = ["intro","lobby","game"];
+  ids.forEach(k=>{
+    const el = document.getElementById(k);
+    if(!el) return;
+    el.style.display = (k===id) ? "" : "none";
+    el.classList.toggle("show", k===id);
+  });
+}
+// override old showSection if existed
+showSection = hardShowSection;
+
+// socket connect gating for join button
+const joinBtn = document.getElementById("joinBtn");
+function setJoinEnabled(on){
+  if(!joinBtn) return;
+  joinBtn.disabled = !on;
+  if(on) { joinBtn.classList.remove("disabled"); }
+  else { joinBtn.classList.add("disabled"); }
+}
+setJoinEnabled(false);
+socket.on("connect", ()=> setJoinEnabled(true));
+socket.on("disconnect", ()=> setJoinEnabled(false));
+
+// ensure initial state
+hardShowSection("intro");
+
 let mySid = null;
 let isHost = false;
 let currentVoteRound = null; // 1 or 2
