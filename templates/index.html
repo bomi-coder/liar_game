@@ -25,7 +25,7 @@
       </div>
     </section>
 
-    <!-- 로비: 초기엔 강제로 숨김(혹시 CSS 안먹어도 안전) -->
+    <!-- 로비 (초기 숨김) -->
     <section id="lobby" class="card section" style="display:none">
       <div class="grid2 gap16">
         <div class="stack gap12">
@@ -40,13 +40,13 @@
           </div>
           <div class="row gap8">
             <button id="startBtn" class="btn success hide">게임 시작</button>
-            <button id="resetBtn" class="btn danger hide">게임 리셋</button>
+            <!-- 🔁 게임 리셋 버튼은 로비에서 제거 (요청사항) -->
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 게임: 초기엔 강제로 숨김 -->
+    <!-- 게임 (초기 숨김) -->
     <section id="game" class="section grid-game" style="display:none">
       <div class="stack gap16">
         <div class="card stack gap10">
@@ -90,6 +90,7 @@
           <div id="voteStatus" class="status-list"></div>
         </div>
 
+        <!-- 🧑‍✈️ 호스트 컨트롤: 호스트만 보이도록 기본 숨김 -->
         <div id="hostControls" class="card stack gap10 hide">
           <div class="h3">🧑‍✈️ 호스트 컨트롤</div>
           <div class="grid3 gap8">
@@ -98,15 +99,15 @@
             <button id="btnStartDiscussion" class="btn">토론 시작</button>
             <button id="btnStartVote" class="btn">투표 시작</button>
             <button id="btnShowResults" class="btn">합계 공개</button>
+            <!-- 🔁 게임 리셋: 게임 화면 안으로 이동 -->
+            <button id="btnResetGame" class="btn danger">게임 리셋</button>
           </div>
         </div>
       </div>
     </section>
   </div>
 
-  <!-- Socket.IO 클라이언트 (필수) -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <!-- 우리 앱 스크립트 -->
   <script src="/static/client.js"></script>
 </body>
 </html>
