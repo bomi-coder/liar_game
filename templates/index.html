@@ -18,11 +18,12 @@
 
     <!-- 인트로 -->
     <section id="intro" class="card section show">
-      <div class="stack gap16">
+      <form id="joinForm" class="stack gap16" autocomplete="off">
         <label for="nameInput" class="label">닉네임</label>
         <input type="text" id="nameInput" class="input" placeholder="이름을 입력하세요" />
-        <button id="joinBtn" class="btn primary">게임 로비 입장</button>
-      </div>
+        <!-- 폼 제출 기반: submit 으로 변경 -->
+        <button id="joinBtn" class="btn primary" type="submit">게임 로비 입장</button>
+      </form>
     </section>
 
     <!-- 로비 (초기 숨김) -->
@@ -36,10 +37,10 @@
           <label class="label" for="hostCodeInput">호스트 코드</label>
           <div class="row gap8">
             <input type="password" id="hostCodeInput" class="input" placeholder="호스트 코드 입력" />
-            <button id="hostBtn" class="btn">권한 얻기</button>
+            <button id="hostBtn" class="btn" type="button">권한 얻기</button>
           </div>
           <div class="row gap8">
-            <button id="startBtn" class="btn success hide">게임 시작</button>
+            <button id="startBtn" class="btn success hide" type="button">게임 시작</button>
             <!-- 🔁 게임 리셋 버튼은 로비에서 제거 (요청사항) -->
           </div>
         </div>
@@ -68,7 +69,7 @@
           <div class="popup-content stack gap10">
             <div id="preHint" class="pre-hint hide">제시어에 대한 힌트를 발언해주세요</div>
             <div id="speakerName" class="speaker-name-badge"></div>
-            <button id="closePopup" class="btn">닫기</button>
+            <button id="closePopup" class="btn" type="button">닫기</button>
           </div>
         </div>
       </div>
@@ -84,8 +85,8 @@
 
         <div class="card stack gap10">
           <div class="row gap8">
-            <button class="chip active" id="tabR1">1차 현황</button>
-            <button class="chip" id="tabR2">2차 현황</button>
+            <button class="chip active" id="tabR1" type="button">1차 현황</button>
+            <button class="chip" id="tabR2" type="button">2차 현황</button>
           </div>
           <div id="voteStatus" class="status-list"></div>
         </div>
@@ -94,13 +95,13 @@
         <div id="hostControls" class="card stack gap10 hide">
           <div class="h3">🧑‍✈️ 호스트 컨트롤</div>
           <div class="grid3 gap8">
-            <button id="btnStartRound" class="btn">라운드 시작</button>
-            <button id="btnNextSpeaker" class="btn">다음 발언자</button>
-            <button id="btnStartDiscussion" class="btn">토론 시작</button>
-            <button id="btnStartVote" class="btn">투표 시작</button>
-            <button id="btnEndVote" class="btn">투표 종료</button> <!-- ✅ 추가 -->
-            <button id="btnShowResults" class="btn">합계 공개</button>
-            <button id="btnResetGame" class="btn danger">게임 리셋</button>
+            <button id="btnStartRound" class="btn" type="button">라운드 시작</button>
+            <button id="btnNextSpeaker" class="btn" type="button">다음 발언자</button>
+            <button id="btnStartDiscussion" class="btn" type="button">토론 시작</button>
+            <button id="btnStartVote" class="btn" type="button">투표 시작</button>
+            <button id="btnEndVote" class="btn" type="button">투표 종료</button> <!-- ✅ 추가 -->
+            <button id="btnShowResults" class="btn" type="button">합계 공개</button>
+            <button id="btnResetGame" class="btn danger" type="button">게임 리셋</button>
           </div>
         </div>
       </div>
