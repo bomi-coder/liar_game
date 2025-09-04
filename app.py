@@ -182,8 +182,33 @@ def on_join(data):
     players[sid] = {"name": name, "score": 0, "is_host": is_first}
     broadcast_player_list()
     emit("joined", {"sid": sid, "name": name, "is_host": is_first}, to=sid)
-    # ✅ 로비 진입 신호
     emit("phase", {"phase": "lobby"}, to=sid)
+
+@socketio.on("become_host")
+def on_become_host(data):
+    code = (data.get("code", "") or "").strip()
+    sid = request.sid
+    if sid in players and code and code.lower() == ADMIN_CODE.lower():
+        players[sid]["is_host"] = True
+        emit("host_ok", {"ok": True}, to=sid)
+        broadcast_player_list()
+    else:
+        emit("host_ok", {"ok": False}, to=sid)
+
+@socketio.on("start_game")
+def on_start_game():
+    sid = request.sid
+    if not players.get(sid, {}).get("is_host"):
+        emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
+        return
+    if len(players) < 3:
+        emit("error_msg", {"msg": "최소 3명 이상이어야 시작할 수 있습니다."}, to=sid)
+        return
+    game_state["phase"] = "assign"
+    game_state["round"] = 0
+    for p in players.values():
+        p["score"] = 0
+    socketio.emit("game_start", {"rounds": ROUND_COUNT})
 
 # ===== 서버 실행 =====
 if __name__ == "__main__":
