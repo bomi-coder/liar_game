@@ -325,9 +325,10 @@ def on_join(data):
 
 @socketio.on("become_host")
 def on_become_host(data):
-    code = data.get("code", "")
+    code = (data.get("code", "") or "").strip()
     sid = request.sid
-    if code == ADMIN_CODE and sid in players:
+    # 대소문자 무시 비교
+    if sid in players and code and code.lower() == ADMIN_CODE.lower():
         players[sid]["is_host"] = True
         emit("host_ok", {"ok": True}, to=sid)
         broadcast_player_list()
