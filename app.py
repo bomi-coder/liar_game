@@ -20,6 +20,8 @@ VOTE_SECONDS = int(os.getenv("VOTE_SECONDS", "60"))
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "secret!liargame")
+
+# Render 배포 호환: async_mode="eventlet"
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 # ===== 주제/제시어 데이터 로드 =====
@@ -29,16 +31,16 @@ with open(DATA_PATH, "r", encoding="utf-8") as f:
 
 # ===== 상태 =====
 players = {}  # sid -> {name, score, is_host}
-order = []    # speaking order (list of sid)
+order = []    # speaking order
 game_state = {
-    "phase": "lobby",   # lobby, assign, hints, discuss, vote1, vote2, tie_speech, liar_guess, round_end, game_end
+    "phase": "lobby",
     "round": 0,
     "subject": None,
     "keyword": None,
-    "roles": {},        # sid -> "LIAR"/"SPY"/"CITIZEN"
-    "votes": {},        # 진행중 투표 버퍼
-    "votes1": {},       # 1차 공개용
-    "votes2": {},       # 2차 공개용
+    "roles": {},
+    "votes": {},
+    "votes1": {},
+    "votes2": {},
     "tie_candidates": [],
     "current_speaker_idx": -1,
     "liar_sid": None,
