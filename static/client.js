@@ -1,226 +1,245 @@
+/* global io */
 const socket = io();
 
 let mySid = null;
+let myName = null;
 let isHost = false;
-let currentVoteRound = null; // 1 or 2
-let voteSelections = {1: null, 2: null};
-let voteLogs = {1: [], 2: []}; // ✅ [{voter_name,target_name}, ...]
 
-const $ = sel => document.querySelector(sel);
-const $$ = sel => document.querySelectorAll(sel);
+function $(sel){ return document.querySelector(sel); }
+function $all(sel){ return document.querySelectorAll(sel); }
 
-function hardShowSection(id){
-  const ids = ["intro","lobby","game"];
-  ids.forEach(k=>{
-    const el = document.getElementById(k);
-    if(!el) return;
-    el.style.display = (k===id) ? "" : "none";
-    el.classList.toggle("show", k===id);
-  });
-}
-function showSection(id){ hardShowSection(id); }
+// 페이지 요소
+const joinForm = $("#join-form");
+const nameInput = $("#name-input");
+const lobbyBtn = $("#lobby-btn");
+const lobbySection = $("#lobby");
+const playerList = $("#player-list");
+const startBtn = $("#start-btn");
+const hostCodeBtn = $("#host-code-btn");
+const hostCodeInput = $("#host-code-input");
+const gameSection = $("#game");
+const phaseTitle = $("#phase-title");
+const roleBox = $("#role-box");
+const subjectBox = $("#subject-box");
+const keywordBox = $("#keyword-box");
+const orderBox = $("#order-box");
+const timerBox = $("#timer-box");
+const voteBox = $("#vote-box");
+const voteList = $("#vote-list");
+const guessBox = $("#guess-box");
+const guessInput = $("#guess-input");
+const guessBtn = $("#guess-btn");
+const scoreboardBox = $("#scoreboard-box");
+const scoreboardList = $("#scoreboard-list");
+const csvBtn = $("#csv-btn");
 
-const joinBtn = $("#joinBtn");
-function setJoinEnabled(on){
-  if(!joinBtn) return;
-  joinBtn.disabled = !on;
-  if(on) joinBtn.classList.remove("disabled"); else joinBtn.classList.add("disabled");
-}
-hardShowSection("intro");
-setJoinEnabled(false);
+// 초기가리기
+lobbySection.style.display = "none";
+gameSection.style.display = "none";
 
-socket.on("connect", ()=> setJoinEnabled(true));
-socket.on("disconnect", ()=> setJoinEnabled(false));
-
-$("#joinBtn").onclick = () => {
-  const name = $("#nameInput").value.trim();
-  if(!name){ alert("이름을 입력하세요"); return; }
-  if(!socket.connected){ alert("서버 연결을 확인해주세요."); return; }
-  socket.emit("join", {name});
-};
-
-function updateHostControls(){
-  const startBtn = $("#startBtn");
-  if(startBtn){
-    if(isHost) startBtn.classList.remove("hide"); else startBtn.classList.add("hide");
+// 이름 입력 후 로비 버튼 노출
+nameInput.addEventListener("input", () => {
+  if (nameInput.value.trim().length > 0) {
+    lobbyBtn.disabled = false;
+  } else {
+    lobbyBtn.disabled = true;
   }
-  const hostControls = $("#hostControls");
-  const btnResetGame = $("#btnResetGame");
-  if(isHost){
-    hostControls?.classList.remove("hide");
-    btnResetGame?.classList.remove("hide");
-  }else{
-    hostControls?.classList.add("hide");
-    btnResetGame?.classList.add("hide");
-  }
-}
-
-socket.on("joined", d => { mySid = d.sid; showSection("lobby"); updateHostControls(); });
-
-socket.on("player_list", list => {
-  const ul = $("#playerList"); if(!ul) return;
-  ul.innerHTML="";
-  list.forEach(p=>{
-    const li = document.createElement("li");
-    li.className="pill";
-    li.textContent = `${p.name} · 점수 ${p.score}${p.is_host ? " · HOST":""}`;
-    ul.appendChild(li);
-  });
 });
 
-socket.on("host_ok", d => {
-  if (d.ok) {
-    window.isHost = true;
-    if (typeof updateHostControls === "function") {
-      updateHostControls();  // 호스트 컨트롤바 보이기/활성화
+// 로비 입장
+lobbyBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  myName = nameInput.value.trim();
+  socket.emit("join", {name: myName});
+  $("#intro").style.display = "none";
+  lobbySection.style.display = "block";
+});
+
+// 호스트 코드 제출
+hostCodeBtn.addEventListener("click", () => {
+  const code = hostCodeInput.value.trim();
+  if (!code) return;
+  socket.emit("become_host", {code});
+});
+
+// 게임 시작 (호스트 전용)
+startBtn.addEventListener("click", () => {
+  socket.emit("start_game");
+});
+
+// 투표
+function sendVote(targetSid){
+  socket.emit("vote", {target_sid: targetSid});
+}
+
+// 라이어 정답 제출
+guessBtn.addEventListener("click", () => {
+  const val = guessInput.value.trim();
+  if(!val) return;
+  socket.emit("liar_guess", {guess: val});
+  guessInput.value = "";
+});
+
+// 타이머 표시
+function setTimer(sec){
+  timerBox.textContent = sec + "초";
+}
+
+// scoreboard CSV 다운로드
+csvBtn.addEventListener("click", () => {
+  let rows = [["이름","점수"]];
+  $all("#scoreboard-list li").forEach(li => {
+    const name = li.getAttribute("data-name");
+    const score = li.getAttribute("data-score");
+    rows.push([name, score]);
+  });
+  const csv = rows.map(r => r.join(",")).join("\n");
+  const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "liar_game_scoreboard.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// ---- 소켓 이벤트 처리 ----
+socket.on("joined", (data) => {
+  window.hasJoined = true;
+  mySid = data.sid;
+  myName = data.name;
+});
+
+socket.on("player_list", (list) => {
+  playerList.innerHTML = "";
+  list.forEach(p => {
+    const li = document.createElement("li");
+    li.textContent = `${p.name} (${p.score}점)` + (p.is_host ? " 👑" : "");
+    playerList.appendChild(li);
+    if (p.sid === mySid) {
+      isHost = p.is_host;
     }
+  });
+  startBtn.style.display = isHost ? "inline-flex" : "none";
+});
+
+socket.on("host_ok", (res) => {
+  if (res.ok) {
+    isHost = true;
+    const startBtn = document.querySelector("#start-btn");
+    if (startBtn) startBtn.style.display = "inline-flex";
     alert("호스트 권한이 부여되었습니다.");
   } else {
-    alert("호스트 코드가 틀렸습니다.");
+    alert("코드가 올바르지 않습니다.");
   }
 });
 
-
-// 호스트 버튼 클릭
-$("#hostBtn").onclick = () => {
-  if (!window.mySid) {
-    alert("먼저 이름을 입력하고 '게임 로비 입장'으로 접속해 주세요.");
-    return;
-  }
-  const raw = $("#hostCodeInput").value || "";
-  const code = raw.trim(); // 앞뒤 공백 제거
-  if (!code) {
-    alert("호스트 코드를 입력해 주세요.");
-    return;
-  }
-  socket.emit("become_host", { code });
-};
-
-$("#startBtn")?.addEventListener("click", ()=> socket.emit("start_game"));
-
-socket.on("game_start", () => {
-  showSection("game");
-  $("#winBanner").classList.add("hide");
-  resetVotePanel();
-  voteSelections={1:null,2:null}; voteLogs={1:[],2:[]};
-  renderVoteStatus(1);
-  updateHostControls();
+socket.on("error_msg", (data) => {
+  alert(data.msg);
 });
 
-// 역할/라운드
-socket.on("role_assignment", d => {
-  $("#roleInfo").textContent = `내 역할: ${d.role} · 주제: ${d.subject} · 제시어: ${d.keyword}`;
-});
-socket.on("round_start", d => {
-  $("#roundInfo").textContent = `Round ${d.round} / ${d.total_rounds} · 주제: ${d.subject}`;
-});
-
-// 발언 안내 + 팝업 + 진동
-socket.on("pre_hint_notice", d => {
-  $("#preHint").classList.remove("hide");
-  $("#speakerPopup").classList.remove("hide");
-  if(d.speaker_sid === mySid && navigator.vibrate) navigator.vibrate(200);
-});
-socket.on("hint_turn", d => {
-  $("#preHint").classList.add("hide");
-  $("#speakerName").textContent = d.speaker_name;
-  $("#speakerPopup").classList.remove("hide");
-  if(d.speaker_sid === mySid && navigator.vibrate) navigator.vibrate([100,70,100]);
-  setTimeout(()=>$("#speakerPopup").classList.add("hide"), 1800);
-});
-$("#closePopup").onclick = ()=> $("#speakerPopup").classList.add("hide");
-
-// 타이머
-socket.on("timer_reset", d => { $("#timer").textContent = d.seconds; });
-socket.on("timer_tick", d => { $("#timer").textContent = d.remaining; });
-socket.on("timer_done", () => { $("#timer").textContent = "0"; });
-
-// 투표 패널
-function setTimerLabel(round){ $("#voteRoundTag").textContent = round ? `${round}차` : "-"; }
-function resetVotePanel(){ $("#voteArea").innerHTML=""; setTimerLabel(null); }
-socket.on("hide_vote_panel", ()=> resetVotePanel());
-
-// 투표 시작
-socket.on("vote_start", d => {
-  currentVoteRound = d.first ? 1 : 2;
-  setTimerLabel(currentVoteRound);
-  renderVoteGrid(d.candidates);
+socket.on("game_start", (data) => {
+  lobbySection.style.display = "none";
+  gameSection.style.display = "block";
+  scoreboardBox.style.display = "none";
+  phaseTitle.textContent = "게임 시작! 라운드 준비 중...";
+  roleBox.textContent = "";
+  subjectBox.textContent = "";
+  keywordBox.textContent = "";
+  orderBox.innerHTML = "";
+  voteBox.style.display = "none";
+  guessBox.style.display = "none";
+  setTimer("");
 });
 
-// 1인 1표 UI
-function renderVoteGrid(cands){
-  const area = $("#voteArea"); area.innerHTML="";
-  cands.forEach(c=>{
+socket.on("round_start", (data) => {
+  phaseTitle.textContent = `라운드 ${data.round}/${data.total_rounds} 시작!`;
+  subjectBox.textContent = `주제: ${data.subject}`;
+  // keywordBox는 여기서 건드리지 않음! (role_assignment에서 최종 세팅)
+  voteBox.style.display = "none";
+  guessBox.style.display = "none";
+  orderBox.innerHTML = "";
+});
+
+socket.on("role_assignment", (data) => {
+  roleBox.textContent = `내 역할: ${data.role}`;
+  subjectBox.textContent = `주제: ${data.subject}`;
+  keywordBox.textContent = `제시어: ${data.keyword}`;
+});
+
+socket.on("hint_turn", (data) => {
+  phaseTitle.textContent = "힌트 발언 단계";
+  orderBox.innerHTML = `발언자: ${data.speaker_name} (${data.order_index+1}/${data.total})`;
+});
+
+socket.on("discussion_start", (data) => {
+  phaseTitle.textContent = "자유 토론";
+});
+
+socket.on("vote_start", (data) => {
+  phaseTitle.textContent = data.first ? "1차 공개 투표" : "재투표";
+  voteBox.style.display = "block";
+  voteList.innerHTML = "";
+  data.candidates.forEach(c => {
     const btn = document.createElement("button");
-    btn.className="btn vote";
+    btn.className = "pill";
     btn.textContent = c.name;
-    btn.dataset.sid = c.sid;
-    if(voteSelections[currentVoteRound] === c.sid) btn.classList.add("selected");
-    btn.onclick = ()=>{
-      $$("#voteArea .btn.vote").forEach(b=>b.classList.remove("selected"));
-      btn.classList.add("selected");
-      voteSelections[currentVoteRound] = c.sid;
-      socket.emit("vote", {target_sid: c.sid});
-    };
-    area.appendChild(btn);
-  });
-}
-
-// ✅ 공개 현황(닉네임 → 닉네임)
-socket.on("vote_update", d => {
-  voteLogs[d.round] = d.details || [];
-  const active = $(".chip.active").id === "tabR2" ? 2 : 1;
-  renderVoteStatus(active);
-});
-
-function renderVoteStatus(round){
-  const box = $("#voteStatus"); box.innerHTML="";
-  const logs = voteLogs[round] || [];
-  if(logs.length === 0){ box.innerHTML="<div class='muted'>아직 투표가 없습니다.</div>"; return; }
-  logs.forEach(it=>{
-    const row = document.createElement("div");
-    row.className="status-row";
-    row.textContent = `${it.voter_name} → ${it.target_name}`;
-    box.appendChild(row);
-  });
-}
-
-// 합산 결과
-socket.on("combined_vote_result", d => {
-  const box = $("#voteStatus"); const tally = d.tally||[];
-  box.innerHTML = "<div class='muted'>합계 득표수</div>";
-  tally.sort((a,b)=>b.votes-a.votes).forEach(item=>{
-    const row = document.createElement("div");
-    row.className="status-row strong";
-    row.textContent = `${item.name} : ${item.votes}표`;
-    box.appendChild(row);
+    btn.onclick = () => sendVote(c.sid);
+    const li = document.createElement("li");
+    li.appendChild(btn);
+    voteList.appendChild(li);
   });
 });
 
-// 결과
-socket.on("round_result", d => {
-  $("#winText").textContent = `승리: ${d.winner}`;
-  $("#winKeyword").textContent = `제시어: ${d.keyword}`;
-  $("#winBanner").classList.remove("hide");
-  resetVotePanel();
-});
-socket.on("game_over", d => {
-  if((d.scoreboard||[]).length){
-    const txt = d.scoreboard.map(x=>`${x.name} : ${x.score}`).join("\n");
-    alert("게임 종료!\n\n"+txt);
-  }
-  $("#winBanner").classList.add("hide");
+socket.on("vote_tie", (data) => {
+  alert("동률입니다. 동률자 발언을 진행합니다.");
 });
 
-// 탭
-$("#tabR1").onclick = ()=>{ $(".chip.active").classList.remove("active"); $("#tabR1").classList.add("active"); renderVoteStatus(1); };
-$("#tabR2").onclick = ()=>{ $(".chip.active").classList.remove("active"); $("#tabR2").classList.add("active"); renderVoteStatus(2); };
+socket.on("tie_speech_turn", (data) => {
+  phaseTitle.textContent = `동률자 발언: ${data.name}`;
+});
 
-// 🧑‍✈️ 호스트 컨트롤
-$("#btnStartRound").onclick      = ()=>{ socket.emit("manual_next_phase", {phase:"round_start"}); socket.emit("hide_vote_panel"); };
-$("#btnNextSpeaker").onclick     = ()=>{ socket.emit("manual_next_phase", {phase:"next_speaker"}); socket.emit("hide_vote_panel"); };
-$("#btnStartDiscussion").onclick = ()=> socket.emit("manual_next_phase", {phase:"discussion"});
-$("#btnStartVote").onclick       = ()=> socket.emit("manual_next_phase", {phase:"vote"});
-$("#btnEndVote").onclick         = ()=> socket.emit("end_vote");          // ✅ 추가: 투표 종료
-$("#btnShowResults").onclick     = ()=> socket.emit("manual_next_phase", {phase:"results"});
-$("#btnResetGame").onclick       = ()=> socket.emit("reset_game");
+socket.on("liar_guess_start", (data) => {
+  phaseTitle.textContent = `라이어 정답 기회 (지목됨: ${data.liar_name})`;
+  guessBox.style.display = "none"; // 기본은 숨김, 라이어에게만 enable 이벤트
+});
+
+socket.on("liar_input_enable", () => {
+  // 라이어에게만 입력창 표시
+  guessBox.style.display = "block";
+});
+
+socket.on("round_result", (data) => {
+  phaseTitle.textContent = `라운드 결과: ${data.winner} 승`;
+  keywordBox.textContent = `정답 제시어: ${data.keyword}`;
+  voteBox.style.display = "none";
+  guessBox.style.display = "none";
+});
+
+socket.on("next_round_soon", (data) => {
+  phaseTitle.textContent = `잠시 후 라운드 ${data.next_round} 시작`;
+  setTimer("");
+});
+
+socket.on("game_over", (data) => {
+  phaseTitle.textContent = "게임 종료! 최종 점수";
+  scoreboardList.innerHTML = "";
+  data.scoreboard.forEach(s => {
+    const li = document.createElement("li");
+    li.textContent = `${s.name}: ${s.score}점`;
+    li.setAttribute("data-name", s.name);
+    li.setAttribute("data-score", s.score);
+    scoreboardList.appendChild(li);
+  });
+  scoreboardBox.style.display = "block";
+});
+
+socket.on("timer_tick", (data) => {
+  setTimer(data.remaining);
+});
+
+socket.on("timer_done", () => {
+  // no-op
+});
