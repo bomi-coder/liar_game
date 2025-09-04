@@ -12,16 +12,39 @@
   let order = [];
   let hintIndex = -1;
 
-  // register
+  // 공용: 연결 & 등록
   socket.on("connect", ()=>{
     if(meName){
       socket.emit("register", {name: meName});
     }
   });
 
-  // index: nothing else
+  // ✅ 공용: 로비 상태 수신(로비/게임 어디서든 호스트 표시/버튼 표시 갱신)
+  socket.on("lobby_state", (state)=>{
+    // 호스트 여부 반영
+    const me = (state.players || []).find(p => p.name === meName);
+    isHost = !!(me && me.is_host);
+    if(isHost) document.body.classList.add("host-enabled"); else document.body.classList.remove("host-enabled");
 
-  // LOBBY
+    // 로비 화면 요소가 있을 때만 갱신
+    const hostInfo = $("#host-info");
+    const startBtn = $("#start-btn");
+    const playerList = $("#player-list");
+    if(hostInfo) hostInfo.innerText = "호스트: " + (state.host_name || "대기중…");
+    if(startBtn) startBtn.disabled = !isHost;
+    if(playerList){
+      playerList.innerHTML = "";
+      (state.players || []).forEach(p=>{
+        const li = document.createElement("li");
+        li.textContent = p.name + (p.is_host ? " 👑" : "");
+        playerList.appendChild(li);
+      });
+    }
+  });
+
+  // ───── index: 없음 ─────
+
+  // ───── LOBBY ─────
   const claimBtn = $("#claim-host-btn");
   if(claimBtn){
     const modal = $("#host-modal");
@@ -29,47 +52,27 @@
     const cancelBtn = $("#host-cancel");
     const submitBtn = $("#host-submit");
     const startBtn = $("#start-btn");
-    const hostInfo = $("#host-info");
-    const playerList = $("#player-list");
 
     claimBtn.addEventListener("click", ()=>{
       modal.classList.remove("hidden");
       codeInput.value = "";
       codeInput.focus();
     });
-    cancelBtn.addEventListener("click", ()=> modal.classList.add("hidden"));
-    submitBtn.addEventListener("click", ()=> {
+    (cancelBtn||{}).addEventListener?.("click", ()=> modal.classList.add("hidden"));
+    (submitBtn||{}).addEventListener?.("click", ()=> {
       socket.emit("claim_host", {code: codeInput.value});
     });
 
-    startBtn.addEventListener("click", ()=> socket.emit("start_game"));
+    (startBtn||{}).addEventListener?.("click", ()=> socket.emit("start_game"));
 
     socket.on("host_granted", (resp)=>{
       if(resp.ok){
-        isHost = true;
         document.body.classList.add("host-enabled");
         modal.classList.add("hidden");
-        hostInfo.innerText = "호스트: " + (resp.host_name || "나");
-        startBtn.disabled = false;
         toast("🎉 호스트가 되었습니다!");
       }else{
         toast("❌ " + (resp.message || "호스트 실패"));
       }
-    });
-
-    socket.on("lobby_state", (state)=>{
-      playerList.innerHTML = "";
-      (state.players || []).forEach(p=>{
-        const li = document.createElement("li");
-        li.textContent = p.name + (p.is_host ? " 👑" : "");
-        playerList.appendChild(li);
-        if(p.name === meName && p.is_host){
-          isHost = true;
-          document.body.classList.add("host-enabled");
-          startBtn.disabled = false;
-        }
-      });
-      hostInfo.innerText = "호스트: " + (state.host_name || "대기중…");
     });
 
     socket.on("game_started", ()=>{
@@ -77,7 +80,7 @@
     });
   }
 
-  // GAME
+  // ───── GAME ─────
   const roleEl = $("#role");
   const topicEl = $("#topic");
   const keyEl = $("#keyword");
@@ -112,7 +115,7 @@
       if(remain <= 0){
         clearInterval(timerId);
         if(isHost && currentPhase.startsWith("hint")){
-          // auto next speaker
+          // 자동 다음 발언자
           socket.emit("hint_next", {index: ++hintIndex});
         }
       }
@@ -128,6 +131,19 @@
     pop.innerText = msg;
     pop.classList.remove("hidden");
     setTimeout(()=>pop.classList.add("hidden"), 1600);
+  }
+  function phaseKo(p){
+    switch(p){
+      case "hint1": return "1차 힌트";
+      case "discussion": return "전체 토론";
+      case "vote1": return "1차 투표";
+      case "hint2": return "2차 힌트";
+      case "vote2": return "2차 투표";
+      case "liar_guess": return "라이어 정답 맞추기";
+      case "results": return "라운드 결과";
+      case "summary": return "최종 결과";
+      default: return p || "-";
+    }
   }
 
   socket.on("role_info", (info)=>{
@@ -145,21 +161,22 @@
     currentPhase = data.phase;
     if(phaseEl) phaseEl.textContent = phaseKo(currentPhase);
     order = data.order || [];
-    orderList.innerHTML = "";
-    order.forEach((p, idx)=>{
-      const li = document.createElement("li");
-      li.textContent = `${idx+1}. ${p.name}`;
-      orderList.appendChild(li);
-    });
+    if(orderList){
+      orderList.innerHTML = "";
+      order.forEach((p, idx)=>{
+        const li = document.createElement("li");
+        li.textContent = `${idx+1}. ${p.name}`;
+        orderList.appendChild(li);
+      });
+    }
     hintIndex = -1;
     if(isHost){
-      // start first speaker immediately
+      // 첫 발언자 시작
       socket.emit("hint_next", {index: 0});
     }
   });
 
   socket.on("hint_turn", (d)=>{
-    currentPhase = currentPhase; // unchanged
     hintIndex = d.index;
     if(currentSpeaker) currentSpeaker.textContent = d.name || "-";
     setTimer(d.seconds || 15);
@@ -174,15 +191,14 @@
   socket.on("open_vote", (d)=>{
     currentPhase = d.phase;
     if(phaseEl) phaseEl.textContent = phaseKo(currentPhase);
-    voteGrid.innerHTML = "";
-    voteLog.innerHTML = "";
+    if(voteGrid) voteGrid.innerHTML = "";
+    if(voteLog) voteLog.innerHTML = "";
     (d.players || []).forEach(p=>{
       if(p.name === meName) return; // 자기 자신 투표 방지
       const btn = document.createElement("button");
       btn.className = "vote-btn";
       btn.textContent = `🗳️ ${p.name}`;
       btn.addEventListener("click", ()=>{
-        // disable after vote
         $$(".vote-btn").forEach(b=>b.disabled=true);
         btn.classList.add("voted");
         socket.emit("cast_vote", {target_sid: p.sid});
@@ -222,7 +238,7 @@
   });
 
   socket.on("final_scores", (data)=>{
-    scoreboard.innerHTML = "";
+    if(scoreboard) scoreboard.innerHTML = "";
     data.scores.forEach((s, idx)=>{
       const li = document.createElement("li");
       li.textContent = `#${idx+1} ${s.name} — ${s.score}점`;
@@ -231,8 +247,9 @@
     toast("🏁 게임 종료! 최종 점수 공개");
   });
 
-  // Host-only buttons
-  if(btnHint1){ btnHint1.addEventListener("click", ()=> socket.emit("start_game")); }
+  // ✅ 호스트 전용 버튼 동작 수정
+  // 1차 힌트: 새 라운드가 이미 시작되어 있으므로 첫 발언자부터 시작
+  if(btnHint1){ btnHint1.addEventListener("click", ()=> socket.emit("hint_next", {index: 0})); }
   if(btnDiscuss){ btnDiscuss.addEventListener("click", ()=> socket.emit("start_discussion")); }
   if(btnVote1){ btnVote1.addEventListener("click", ()=> socket.emit("start_vote1")); }
   if(btnHint2){ btnHint2.addEventListener("click", ()=> socket.emit("start_hint2")); }
@@ -241,18 +258,4 @@
   if(btnClose2){ btnClose2.addEventListener("click", ()=> socket.emit("close_vote2")); }
   if(btnNextTurn){ btnNextTurn.addEventListener("click", ()=> socket.emit("hint_next", {index: (hintIndex<0?0:hintIndex+1)})); }
   if(btnNextRound){ btnNextRound.addEventListener("click", ()=> socket.emit("next_round")); }
-
-  function phaseKo(p){
-    switch(p){
-      case "hint1": return "1차 힌트";
-      case "discussion": return "전체 토론";
-      case "vote1": return "1차 투표";
-      case "hint2": return "2차 힌트";
-      case "vote2": return "2차 투표";
-      case "liar_guess": return "라이어 정답 맞추기";
-      case "results": return "라운드 결과";
-      case "summary": return "최종 결과";
-      default: return p || "-";
-    }
-  }
 })();
