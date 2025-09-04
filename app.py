@@ -18,7 +18,6 @@ TIE_SPEECH_SECONDS = int(os.getenv("TIE_SPEECH_SECONDS", "20"))
 LIAR_GUESS_SECONDS = int(os.getenv("LIAR_GUESS_SECONDS", "30"))
 VOTE_SECONDS = int(os.getenv("VOTE_SECONDS", "60"))
 
-# 정적/템플릿 경로 명시 (정적 0바이트/경로 꼬임 방지)
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "secret!liargame")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
@@ -32,38 +31,27 @@ with open(DATA_PATH, "r", encoding="utf-8") as f:
 players = {}  # sid -> {name, score, is_host}
 order = []    # speaking order (list of sid)
 game_state = {
-    "phase": "lobby",   # lobby, assign, hints, discuss, vote1, tie_speech, vote2, liar_guess, reveal, round_end, game_end
+    "phase": "lobby",   # lobby, assign, hints, discuss, vote1, vote2, tie_speech, liar_guess, round_end, game_end
     "round": 0,
     "subject": None,
     "keyword": None,
     "roles": {},        # sid -> "LIAR"/"SPY"/"CITIZEN"
-    "votes": {},        # 현재 라운드(1차/2차 어떤 쪽이든) 수집 버퍼
-    "votes1": {},       # 1차 투표 결과(공개 현황 용)
-    "votes2": {},       # 2차 투표 결과(공개 현황 용)
+    "votes": {},        # 진행중 투표 버퍼
+    "votes1": {},       # 1차 공개용
+    "votes2": {},       # 2차 공개용
     "tie_candidates": [],
     "current_speaker_idx": -1,
     "liar_sid": None,
     "spy_sid": None,
     "timer_end": None,
-    "timer_token": 0    # 타이머 리셋 토큰
+    "timer_token": 0
 }
 
-def reset_round_state():
-    game_state.update({
-        "phase": "assign",
-        "subject": None,
-        "keyword": None,
-        "roles": {},
-        "votes": {},
-        "votes1": {},
-        "votes2": {},
-        "tie_candidates": [],
-        "current_speaker_idx": -1,
-        "liar_sid": None,
-        "spy_sid": None,
-        "timer_end": None,
-        "timer_token": 0
-    })
+# ===== 유틸 =====
+def stop_timer():
+    game_state["timer_token"] += 1
+    game_state["timer_end"] = None
+    socketio.emit("timer_done", {})
 
 def broadcast_player_list():
     socketio.emit("player_list", [
@@ -97,16 +85,13 @@ def assign_roles():
             game_state["roles"][sid] = "CITIZEN"
 
 def countdown(seconds, tick_event, end_event):
-    # 토큰 기반 타이머 (리셋 지원)
-    game_state["timer_token"] = game_state.get("timer_token", 0) + 1
+    game_state["timer_token"] += 1
     my_token = game_state["timer_token"]
-    # 초기화 알림
     socketio.emit("timer_reset", {"seconds": seconds})
     end_time = time.time() + seconds
     game_state["timer_end"] = end_time
     while True:
         if my_token != game_state.get("timer_token"):
-            # 새로운 타이머 시작됨 → 중단
             return
         remaining = int(round(end_time - time.time()))
         if remaining < 0:
@@ -117,11 +102,9 @@ def countdown(seconds, tick_event, end_event):
         socketio.sleep(1)
     socketio.emit(end_event, {})
 
-# ===== 라운드 시작 (수동 진행을 위해 자동 단계진행 제거) =====
+# ===== 라운드/단계 =====
 def start_round():
     game_state["round"] += 1
-    # round 올리기 전에 reset을 하면 round 0 됨 → 순서 바꾸지 마!
-    # 다음 라운드를 위해 일부 상태만 초기화
     game_state.update({
         "phase": "assign",
         "subject": None,
@@ -148,56 +131,36 @@ def start_round():
     order = list(players.keys())
     random.shuffle(order)
 
-    # 라운드 정보 브로드캐스트
+    # 라운드 정보 & 개인 역할 노출
     socketio.emit("round_start", {
         "round": game_state["round"],
         "total_rounds": ROUND_COUNT,
         "subject": game_state["subject"]
     })
-
-    # 개인 역할/제시어 발송 (유니캐스트)
     for sid in players.keys():
         role = game_state["roles"].get(sid, "CITIZEN")
         if role == "LIAR":
-            socketio.emit("role_assignment", {
-                "role": "라이어",
-                "subject": game_state["subject"],
-                "keyword": "???"
-            }, to=sid)
+            socketio.emit("role_assignment", {"role": "라이어","subject": game_state["subject"],"keyword": "???"}, to=sid)
         else:
-            socketio.emit("role_assignment", {
-                "role": "스파이" if role == "SPY" else "시민",
-                "subject": game_state["subject"],
-                "keyword": game_state["keyword"]
-            }, to=sid)
+            socketio.emit("role_assignment", {"role": "스파이" if role=="SPY" else "시민","subject": game_state["subject"],"keyword": game_state["keyword"]}, to=sid)
 
-    # 이제 수동 단계로 넘어감
     game_state["phase"] = "hints"
-    game_state["current_speaker_idx"] = -1  # 아직 첫 발언자 전
+    game_state["current_speaker_idx"] = -1
 
 def step_next_speaker():
-    """호스트 버튼으로 1명씩 발언턴 진행"""
     if game_state["phase"] not in ("hints", "assign"):
         return
-    # 다음 인덱스
     next_idx = game_state.get("current_speaker_idx", -1) + 1
     if next_idx >= len(order):
-        # 모두 발언 끝 → 토론으로 넘길 수 있도록 상태만 설정
+        # 모두 발언 완료 → 토론으로 넘어갈 수 있게 상태만
         game_state["phase"] = "discuss"
         return
-
     game_state["current_speaker_idx"] = next_idx
     sid = order[next_idx]
     name = players.get(sid, {}).get("name", "알수없음")
 
-    # 사전 안내 → 팝업
-    socketio.emit("pre_hint_notice", {
-        "speaker_sid": sid,
-        "speaker_name": name
-    })
+    socketio.emit("pre_hint_notice", {"speaker_sid": sid, "speaker_name": name})
     socketio.sleep(0.4)
-
-    # 발언 턴 시작 + 타이머
     socketio.emit("hint_turn", {
         "speaker_sid": sid,
         "speaker_name": name,
@@ -212,6 +175,18 @@ def start_discussion():
     socketio.emit("discussion_start", {"seconds": DISCUSS_SECONDS})
     socketio.start_background_task(countdown, DISCUSS_SECONDS, "timer_tick", "timer_done")
 
+def _broadcast_vote_update(roundno):
+    details = []
+    votes = game_state["votes1"] if roundno == 1 else game_state["votes2"]
+    for voter, target in votes.items():
+        details.append({
+            "voter_sid": voter,
+            "voter_name": players.get(voter, {}).get("name", voter),
+            "target_sid": target,
+            "target_name": players.get(target, {}).get("name", target),
+        })
+    socketio.emit("vote_update", {"round": roundno, "details": details})
+
 def start_vote(first=True, limited_to=None):
     game_state["phase"] = "vote1" if first else "vote2"
     game_state["votes"] = {}
@@ -222,49 +197,42 @@ def start_vote(first=True, limited_to=None):
         "candidates": [{"sid": sid, "name": players[sid]["name"]} for sid in candidates],
         "seconds": VOTE_SECONDS
     })
-    # 투표 타이머도 동작(요청사항 60초 타이머)
     socketio.start_background_task(countdown, VOTE_SECONDS, "timer_tick", "timer_done")
-    # 별도의 자동 집계는 하지 않고, '합계 공개' 버튼/기존 로직으로 처리 가능
+
+def end_vote():
+    """호스트가 '투표 종료'를 누르면 타이머 정지 + 패널 숨김.
+       1차 투표였다면 다음 사이클(다시 힌트)로 갈 수 있도록 phase 유연화."""
+    stop_timer()
+    socketio.emit("hide_vote_panel")
+    if game_state["phase"] == "vote1":
+        # 다시 힌트 단계로 돌아가서 전원 발언 2회차 진행 가능
+        game_state["phase"] = "hints"
+        game_state["current_speaker_idx"] = -1
 
 def combined_vote_and_reveal_then_judge():
-    """1차+2차 합산을 공개하고, 기존 규칙으로 판정 이어가기"""
-    # 합산용 tally
     tally = {}
     for d in (game_state["votes1"], game_state["votes2"]):
         for voter, target in d.items():
             if target in players:
                 tally[target] = tally.get(target, 0) + 1
-
-    # 공개용 데이터 (이름과 득표수)
     name_map = {sid: players[sid]["name"] for sid in players}
     combo_list = [{"sid": sid, "name": name_map.get(sid, sid), "votes": v} for sid, v in tally.items()]
     socketio.emit("combined_vote_result", {"tally": combo_list})
 
     if not tally:
-        liar_spy_win(reason="no_votes")
-        return
-
+        liar_spy_win(reason="no_votes"); return
     max_votes = max(tally.values())
     top = [sid for sid, cnt in tally.items() if cnt == max_votes]
-
     if len(top) >= 2:
-        # 동률자 발언 → 20초씩
         game_state["tie_candidates"] = top
-        socketio.emit("vote_tie", {
-            "candidates": [{"sid": sid, "name": players[sid]["name"]} for sid in top]
-        })
+        socketio.emit("vote_tie", {"candidates": [{"sid": sid, "name": players[sid]["name"]} for sid in top]})
         game_state["phase"] = "tie_speech"
         for sid in top:
-            socketio.emit("tie_speech_turn", {
-                "sid": sid, "name": players[sid]["name"], "seconds": TIE_SPEECH_SECONDS
-            })
+            socketio.emit("tie_speech_turn", {"sid": sid, "name": players[sid]["name"], "seconds": TIE_SPEECH_SECONDS})
             countdown(TIE_SPEECH_SECONDS, "timer_tick", "timer_done")
             socketio.sleep(0.2)
-        # 재투표(2차로 제한 투표)
         start_vote(first=False, limited_to=top)
         return
-
-    # 단일 최다득표자
     accused = top[0]
     liar_sid = game_state["liar_sid"]
     if accused == liar_sid:
@@ -293,7 +261,6 @@ def normalize(s):
     return "".join(str(s).strip().split())
 
 def citizens_win(reason=""):
-    # 점수: 시민 전원 +1 (라이어가 걸렸고 정답 못맞힘)
     for sid, info in players.items():
         role = game_state["roles"].get(sid, "CITIZEN")
         if role == "CITIZEN":
@@ -302,7 +269,6 @@ def citizens_win(reason=""):
     end_or_next_round()
 
 def liar_spy_win(reason=""):
-    # 점수: 라이어 +2, 스파이 +1 (스파이가 존재할 때만)
     for sid, info in players.items():
         role = game_state["roles"].get(sid, "CITIZEN")
         if role == "LIAR":
@@ -321,9 +287,8 @@ def end_or_next_round():
     else:
         game_state["phase"] = "round_end"
         socketio.emit("next_round_soon", {"next_round": game_state["round"] + 1})
-        socketio.sleep(2.5)
-        # 다음 라운드도 수동 버튼으로 시작할 수 있도록 여기서는 자동 호출하지 않음
-        # (호스트가 '라운드 시작' 버튼을 눌러야 start_round() 실행)
+        socketio.sleep(2.0)
+        # 다음 라운드는 호스트가 '라운드 시작'으로 진행
 
 # ===== 라우팅 =====
 @app.route("/")
@@ -378,13 +343,12 @@ def on_start_game():
     if len(players) < 3:
         emit("error_msg", {"msg": "최소 3명 이상이어야 시작할 수 있습니다."}, to=sid)
         return
-    # 게임 전체 초기화
     game_state["phase"] = "assign"
     game_state["round"] = 0
     for p in players.values():
         p["score"] = 0
     socketio.emit("game_start", {"rounds": ROUND_COUNT})
-    # 라운드 시작은 수동 버튼(라운드 시작)으로 진행
+    # 라운드 시작은 수동 버튼
 
 # === 수동 컨트롤: 호스트만 ===
 @socketio.on("manual_next_phase")
@@ -402,15 +366,23 @@ def on_manual_next_phase(data):
     elif phase == "discussion":
         start_discussion()
     elif phase == "vote":
-        # 1차를 먼저, 그 다음 2차
-        first = (game_state["phase"] != "vote2") and (len(game_state["votes1"]) == 0)
+        # 1차가 비어 있으면 1차, 아니면 2차
+        first = (len(game_state["votes1"]) == 0)
         start_vote(first=first)
     elif phase == "results":
         combined_vote_and_reveal_then_judge()
 
+@socketio.on("end_vote")
+def on_end_vote():
+    sid = request.sid
+    if not players.get(sid, {}).get("is_host"):
+        emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
+        return
+    end_vote()
+
 @socketio.on("hide_vote_panel")
 def on_hide_vote_panel():
-    # 클라이언트가 패널 숨김을 UI용으로만 쓰므로 서버에선 별도 상태 없음
+    # 클라 UI용 훅
     pass
 
 @socketio.on("reset_game")
@@ -419,7 +391,6 @@ def on_reset_game():
     if not players.get(sid, {}).get("is_host"):
         emit("error_msg", {"msg": "권한이 없습니다."}, to=sid)
         return
-    # 전부 초기화
     for p in players.values():
         p["score"] = 0
     game_state.update({
@@ -438,7 +409,7 @@ def on_reset_game():
         "timer_end": None,
         "timer_token": 0
     })
-    socketio.emit("game_over", {"scoreboard": []})  # UI 초기화 유도용(빈 보드)
+    socketio.emit("game_over", {"scoreboard": []})
 
 @socketio.on("vote")
 def on_vote(data):
@@ -448,17 +419,14 @@ def on_vote(data):
         return
     if target not in players:
         return
-
-    # 1인 1표(마지막 선택으로 갱신)
+    # 1인 1표(마지막 선택으로 덮어쓰기)
     game_state["votes"][sid] = target
-    # 공개 현황용 별도 저장 + 브로드캐스트
     if game_state["phase"] == "vote1":
         game_state["votes1"][sid] = target
-        socketio.emit("vote_update", {"round": 1, "votes": game_state["votes1"]})
+        _broadcast_vote_update(1)
     else:
         game_state["votes2"][sid] = target
-        socketio.emit("vote_update", {"round": 2, "votes": game_state["votes2"]})
-
+        _broadcast_vote_update(2)
     emit("vote_ok", {"ok": True}, to=sid)
 
 @socketio.on("liar_guess")
@@ -476,7 +444,7 @@ def on_liar_guess(data):
     else:
         citizens_win(reason="liar_wrong")
 
-# ---- 선택: 예전 호환용(필요시) ----
+# 호환용
 @socketio.on("begin_round")
 def on_begin_round():
     sid = request.sid
@@ -493,6 +461,5 @@ def on_start_vote_sum_reveal():
         return
     combined_vote_and_reveal_then_judge()
 
-# ===== 엔트리 포인트 =====
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
