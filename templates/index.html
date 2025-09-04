@@ -1,3 +1,6 @@
+<!-- =============================
+index.html
+============================= -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -18,98 +21,30 @@
 
     <!-- 인트로 -->
     <section id="intro" class="card section show">
-      <form id="joinForm" class="stack gap16" autocomplete="off">
-        <label for="nameInput" class="label">닉네임</label>
-        <input type="text" id="nameInput" class="input" placeholder="이름을 입력하세요" />
-        <!-- 폼 제출 기반: submit 으로 변경 -->
-        <button id="joinBtn" class="btn primary" type="submit">게임 로비 입장</button>
-      </form>
-    </section>
-
-    <!-- 로비 (초기 숨김) -->
-    <section id="lobby" class="card section" style="display:none">
-      <div class="grid2 gap16">
-        <div class="stack gap12">
-          <h2 class="h2">🎉 게임 로비</h2>
-          <ul id="playerList" class="list"></ul>
-        </div>
-        <div class="stack gap12">
-          <label class="label" for="hostCodeInput">호스트 코드</label>
-          <div class="row gap8">
-            <input type="password" id="hostCodeInput" class="input" placeholder="호스트 코드 입력" />
-            <button id="hostBtn" class="btn" type="button">권한 얻기</button>
-          </div>
-          <div class="row gap8">
-            <button id="startBtn" class="btn success hide" type="button">게임 시작</button>
-            <!-- 🔁 게임 리셋 버튼은 로비에서 제거 (요청사항) -->
-          </div>
-        </div>
+      <div class="stack gap16">
+        <label for="nameInput" class="label">이름</label>
+        <input id="nameInput" class="input" placeholder="닉네임 입력" />
+        <button id="joinBtn" class="btn">게임 로비 입장</button>
       </div>
     </section>
 
-    <!-- 게임 (초기 숨김) -->
-    <section id="game" class="section grid-game" style="display:none">
-      <div class="stack gap16">
-        <div class="card stack gap10">
-          <div id="roundInfo" class="round-title">Round -</div>
-          <div id="roleInfo" class="role-info">내 역할/주제/제시어</div>
-        </div>
+    <!-- 로비 -->
+    <section id="lobby" class="card section">
+      <h2>게임 로비</h2>
+      <div id="playerList"></div>
+      <button id="startBtn" class="btn">게임 시작</button>
+    </section>
 
-        <div class="timer-card card">
-          <div class="timer-label">⏰ 남은 시간</div>
-          <div id="timer" class="timer-value">--</div>
-        </div>
-
-        <div id="winBanner" class="win-banner hide">
-          <div id="winText">승리!</div>
-          <div id="winKeyword" class="win-keyword"></div>
-        </div>
-
-        <div id="speakerPopup" class="popup hide">
-          <div class="popup-content stack gap10">
-            <div id="preHint" class="pre-hint hide">제시어에 대한 힌트를 발언해주세요</div>
-            <div id="speakerName" class="speaker-name-badge"></div>
-            <button id="closePopup" class="btn" type="button">닫기</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="stack gap16">
-        <div class="card stack gap12" id="votePanel">
-          <div class="row gap8 between">
-            <div class="h3">🗳️ 투표</div>
-            <div id="voteRoundTag" class="tag">-</div>
-          </div>
-          <div id="voteArea" class="vote-grid"></div>
-        </div>
-
-        <div class="card stack gap10">
-          <div class="row gap8">
-            <button class="chip active" id="tabR1" type="button">1차 현황</button>
-            <button class="chip" id="tabR2" type="button">2차 현황</button>
-          </div>
-          <div id="voteStatus" class="status-list"></div>
-        </div>
-
-        <!-- 🧑‍✈️ 호스트 컨트롤: 호스트만 보이도록 기본 숨김 -->
-        <div id="hostControls" class="card stack gap10 hide">
-          <div class="h3">🧑‍✈️ 호스트 컨트롤</div>
-          <div class="grid3 gap8">
-            <button id="btnStartRound" class="btn" type="button">라운드 시작</button>
-            <button id="btnNextSpeaker" class="btn" type="button">다음 발언자</button>
-            <button id="btnStartDiscussion" class="btn" type="button">토론 시작</button>
-            <button id="btnStartVote" class="btn" type="button">투표 시작</button>
-            <button id="btnEndVote" class="btn" type="button">투표 종료</button> <!-- ✅ 추가 -->
-            <button id="btnShowResults" class="btn" type="button">합계 공개</button>
-            <button id="btnResetGame" class="btn danger" type="button">게임 리셋</button>
-          </div>
-        </div>
-      </div>
+    <!-- 게임 -->
+    <section id="game" class="card section">
+      <h2>게임 화면</h2>
+      <div id="gameArea"></div>
+      <div id="timer" class="timer"></div>
     </section>
   </div>
 
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <!-- ✅ 캐시 버스터 추가 (날짜/빌드 넘버 아무거나) -->
-  <script src="/static/client.js?v=20250904-0135"></script>
+  <!-- ✅ socket.io client 추가 -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/static/client.js"></script>
 </body>
 </html>
