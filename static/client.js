@@ -1,253 +1,177 @@
-/* global io */
+// ===== socket 연결 =====
 const socket = io();
 
+// ===== DOM =====
+const $intro  = document.getElementById('intro');
+const $lobby  = document.getElementById('lobby');
+const $game   = document.getElementById('game');
+
+const $joinForm   = document.getElementById('joinForm');
+const $nameInput  = document.getElementById('nameInput');
+const $joinBtn    = document.getElementById('joinBtn');
+
+const $playerList = document.getElementById('playerList');
+
+const $hostCodeInput = document.getElementById('hostCodeInput');
+const $hostBtn       = document.getElementById('hostBtn');
+const $startBtn      = document.getElementById('startBtn');
+
+const $hostControls  = document.getElementById('hostControls');
+
+const $roundInfo = document.getElementById('roundInfo');
+const $roleInfo  = document.getElementById('roleInfo');
+
+// 호스트 컨트롤 버튼들 (있으면 바인딩)
+const $btnStartRound     = document.getElementById('btnStartRound');
+const $btnNextSpeaker    = document.getElementById('btnNextSpeaker');
+const $btnStartDiscussion= document.getElementById('btnStartDiscussion');
+const $btnStartVote      = document.getElementById('btnStartVote');
+const $btnEndVote        = document.getElementById('btnEndVote');
+const $btnShowResults    = document.getElementById('btnShowResults');
+const $btnResetGame      = document.getElementById('btnResetGame');
+
+// ===== 상태 =====
 let mySid = null;
-let myName = null;
 let isHost = false;
 
-function $(sel){ return document.querySelector(sel); }
-function $all(sel){ return document.querySelectorAll(sel); }
+// ===== 유틸 =====
+function show(el){ if (el) el.style.display = ''; }
+function hide(el){ if (el) el.style.display = 'none'; }
+function inLobbyView(){ hide($intro); show($lobby); hide($game); }
+function inGameView(){  hide($intro); hide($lobby); show($game); }
 
-// 페이지 요소
-const joinForm = $("#join-form");
-const nameInput = $("#name-input");
-const lobbyBtn = $("#lobby-btn");
-const lobbySection = $("#lobby");
-const playerList = $("#player-list");
-const startBtn = $("#start-btn");
-const hostCodeBtn = $("#host-code-btn");
-const hostCodeInput = $("#host-code-input");
-const gameSection = $("#game");
-const phaseTitle = $("#phase-title");
-const roleBox = $("#role-box");
-const subjectBox = $("#subject-box");
-const keywordBox = $("#keyword-box");
-const orderBox = $("#order-box");
-const timerBox = $("#timer-box");
-const voteBox = $("#vote-box");
-const voteList = $("#vote-list");
-const guessBox = $("#guess-box");
-const guessInput = $("#guess-input");
-const guessBtn = $("#guess-btn");
-const scoreboardBox = $("#scoreboard-box");
-const scoreboardList = $("#scoreboard-list");
-const csvBtn = $("#csv-btn");
-
-// 초기가리기
-lobbySection.style.display = "none";
-gameSection.style.display = "none";
-
-// 이름 입력 후 로비 버튼 노출
-nameInput.addEventListener("input", () => {
-  if (nameInput.value.trim().length > 0) {
-    lobbyBtn.disabled = false;
-  } else {
-    lobbyBtn.disabled = true;
+function ensureName(){
+  const name = ($nameInput.value || '').trim();
+  if (!name){
+    alert("닉네임을 입력해 주세요.");
+    $nameInput.focus();
+    return null;
   }
-});
-
-// 로비 입장
-joinForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  myName = nameInput.value.trim();
-  if (!myName) { alert("이름을 입력해 주세요."); return; }
-  socket.emit("join", {name: myName});
-  $("#intro").style.display = "none";
-  lobbySection.style.display = "block";
-});
-
-// 버튼 클릭도 submit 트리거
-lobbyBtn.addEventListener("click", (e) => { e.preventDefault(); joinForm.requestSubmit(); });
-
-// 호스트 코드 제출
-hostCodeBtn.addEventListener("click", () => {
-  const code = hostCodeInput.value.trim();
-  if (!code) return;
-  socket.emit("become_host", {code});
-});
-
-// 게임 시작 (호스트 전용)
-startBtn.addEventListener("click", () => {
-  socket.emit("start_game");
-});
-
-// 투표
-function sendVote(targetSid){
-  socket.emit("vote", {target_sid: targetSid});
+  return name;
 }
 
-// 라이어 정답 제출
-guessBtn.addEventListener("click", () => {
-  const val = guessInput.value.trim();
-  if(!val) return;
-  socket.emit("liar_guess", {guess: val});
-  guessInput.value = "";
-});
+// ===== 이벤트 바인딩 =====
 
-// 타이머 표시
-function setTimer(sec){
-  timerBox.textContent = sec + "초";
-}
-
-// scoreboard CSV 다운로드
-csvBtn.addEventListener("click", () => {
-  let rows = [["이름","점수"]];
-  $all("#scoreboard-list li").forEach(li => {
-    const name = li.getAttribute("data-name");
-    const score = li.getAttribute("data-score");
-    rows.push([name, score]);
+// (A) 폼 제출로 로비 입장
+if ($joinForm){
+  $joinForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const name = ensureName();
+    if (!name) return;
+    socket.emit('join', { name });
   });
-  const csv = rows.map(r => r.join(",")).join("\n");
-  const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "liar_game_scoreboard.csv";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-});
+}
+// (B) 클릭으로도 동작 (모바일 보조)
+if ($joinBtn){
+  $joinBtn.addEventListener('click', ()=>{
+    const name = ensureName();
+    if (!name) return;
+    socket.emit('join', { name });
+  });
+}
 
-// ---- 소켓 이벤트 처리 ----
-socket.on("joined", (data) => {
-  window.hasJoined = true;
+// 호스트 권한 얻기
+if ($hostBtn){
+  $hostBtn.addEventListener('click', ()=>{
+    if (!mySid){
+      // 서버에서 joined 안된 상태
+      alert("먼저 이름을 입력하고 '게임 로비 입장'으로 접속해 주세요.");
+      return;
+    }
+    const code = ($hostCodeInput.value || '').trim();
+    if (!code){
+      alert('호스트 코드를 입력해 주세요.');
+      return;
+    }
+    socket.emit('become_host', { code });
+  });
+}
+
+// 호스트만 보이는 컨트롤(서버 쪽 핸들러가 있는 것만 전송)
+if ($btnStartRound){
+  $btnStartRound.addEventListener('click', ()=> socket.emit('begin_round'));
+}
+if ($btnNextSpeaker){
+  $btnNextSpeaker.addEventListener('click', ()=> socket.emit('next_speaker')); // 서버에 이 이벤트가 없으면 추가 필요
+}
+if ($btnStartDiscussion){
+  $btnStartDiscussion.addEventListener('click', ()=> socket.emit('start_discussion')); // 서버에 추가 필요
+}
+if ($btnStartVote){
+  $btnStartVote.addEventListener('click', ()=> socket.emit('start_vote')); // 서버에 추가 필요
+}
+if ($btnEndVote){
+  $btnEndVote.addEventListener('click', ()=> socket.emit('end_vote')); // 서버에 추가 필요
+}
+if ($btnShowResults){
+  $btnShowResults.addEventListener('click', ()=> socket.emit('start_vote_sum_reveal'));
+}
+if ($btnResetGame){
+  $btnResetGame.addEventListener('click', ()=> socket.emit('reset_game')); // 서버에 추가 필요
+}
+
+// ===== 소켓 수신 =====
+
+// 로비 입장 성공
+socket.on('joined', (data)=>{
   mySid = data.sid;
-  myName = data.name;
-  const intro = document.querySelector("#intro");
-  const lobbySection = document.querySelector("#lobby");
-  if (intro) intro.style.display = "none";
-  if (lobbySection) lobbySection.style.display = "block";
+  inLobbyView();
 });
 
-socket.on("player_list", (list) => {
-  playerList.innerHTML = "";
-  list.forEach(p => {
-    const li = document.createElement("li");
-    li.textContent = `${p.name} (${p.score}점)` + (p.is_host ? " 👑" : "");
-    playerList.appendChild(li);
-    if (p.sid === mySid) {
-      isHost = p.is_host;
+// 로비 플레이어 목록 갱신
+socket.on('player_list', (list)=>{
+  // 내가 호스트인지 정보를 못 받는다면 서버가 host_ok를 따로 보냄
+  $playerList.innerHTML = '';
+  (list || []).forEach(p=>{
+    const li = document.createElement('li');
+    li.textContent = `${p.name}${p.is_host ? ' (HOST)' : ''} — ${p.score ?? 0}점`;
+    $playerList.appendChild(li);
+    // 내 row 보고 호스트 여부 동기화(보조)
+    if (mySid && p.sid === mySid){
+      isHost = !!p.is_host;
     }
   });
-  startBtn.style.display = isHost ? "inline-flex" : "none";
+  // 호스트 컨트롤 표시 여부
+  if ($hostControls) (isHost ? show($hostControls) : hide($hostControls));
+  if ($startBtn)      (isHost ? $startBtn.classList.remove('hide') : $startBtn.classList.add('hide'));
 });
 
-socket.on("host_ok", (res) => {
-  if (res.ok) {
-    isHost = true;
-    const startBtn = document.querySelector("#start-btn");
-    if (startBtn) startBtn.style.display = "inline-flex";
-    alert("호스트 권한이 부여되었습니다.");
-  } else {
-    alert("코드가 올바르지 않습니다.");
+// 호스트 인증 결과
+socket.on('host_ok', (data)=>{
+  isHost = !!(data && data.ok);
+  if (isHost){
+    alert('호스트 권한이 부여되었습니다.');
+  }else{
+    alert('호스트 코드가 올바르지 않습니다.');
+  }
+  if ($hostControls) (isHost ? show($hostControls) : hide($hostControls));
+  if ($startBtn)      (isHost ? $startBtn.classList.remove('hide') : $startBtn.classList.add('hide'));
+});
+
+// 게임 시작(서버 브로드캐스트)
+socket.on('game_start', (payload)=>{
+  inGameView();
+  if ($roundInfo) $roundInfo.textContent = 'Round -';
+  if ($roleInfo)  $roleInfo.textContent  = '내 역할/주제/제시어';
+});
+
+// 라운드 시작(서버 브로드캐스트)
+socket.on('round_start', (data)=>{
+  inGameView();
+  if ($roundInfo){
+    $roundInfo.textContent = `Round ${data.round} / ${data.total_rounds} — 주제: ${data.subject}`;
   }
 });
 
-socket.on("error_msg", (data) => {
-  alert(data.msg);
+// 개인별 역할/제시어 (유니캐스트)
+socket.on('role_assignment', (data)=>{
+  // data: {role, subject, keyword}
+  if ($roleInfo){
+    $roleInfo.textContent = `역할: ${data.role} | 주제: ${data.subject} | 제시어: ${data.keyword}`;
+  }
 });
 
-socket.on("game_start", (data) => {
-  lobbySection.style.display = "none";
-  gameSection.style.display = "block";
-  scoreboardBox.style.display = "none";
-  phaseTitle.textContent = "게임 시작! 라운드 준비 중...";
-  roleBox.textContent = "";
-  subjectBox.textContent = "";
-  keywordBox.textContent = "";
-  orderBox.innerHTML = "";
-  voteBox.style.display = "none";
-  guessBox.style.display = "none";
-  setTimer("");
-});
-
-socket.on("round_start", (data) => {
-  phaseTitle.textContent = `라운드 ${data.round}/${data.total_rounds} 시작!`;
-  subjectBox.textContent = `주제: ${data.subject}`;
-  // keywordBox는 여기서 건드리지 않음! (role_assignment에서 최종 세팅)
-  voteBox.style.display = "none";
-  guessBox.style.display = "none";
-  orderBox.innerHTML = "";
-});
-
-socket.on("role_assignment", (data) => {
-  roleBox.textContent = `내 역할: ${data.role}`;
-  subjectBox.textContent = `주제: ${data.subject}`;
-  keywordBox.textContent = `제시어: ${data.keyword}`;
-});
-
-socket.on("hint_turn", (data) => {
-  phaseTitle.textContent = "힌트 발언 단계";
-  orderBox.innerHTML = `발언자: ${data.speaker_name} (${data.order_index+1}/${data.total})`;
-});
-
-socket.on("discussion_start", (data) => {
-  phaseTitle.textContent = "자유 토론";
-});
-
-socket.on("vote_start", (data) => {
-  phaseTitle.textContent = data.first ? "1차 공개 투표" : "재투표";
-  voteBox.style.display = "block";
-  voteList.innerHTML = "";
-  data.candidates.forEach(c => {
-    const btn = document.createElement("button");
-    btn.className = "pill";
-    btn.textContent = c.name;
-    btn.onclick = () => sendVote(c.sid);
-    const li = document.createElement("li");
-    li.appendChild(btn);
-    voteList.appendChild(li);
-  });
-});
-
-socket.on("vote_tie", (data) => {
-  alert("동률입니다. 동률자 발언을 진행합니다.");
-});
-
-socket.on("tie_speech_turn", (data) => {
-  phaseTitle.textContent = `동률자 발언: ${data.name}`;
-});
-
-socket.on("liar_guess_start", (data) => {
-  phaseTitle.textContent = `라이어 정답 기회 (지목됨: ${data.liar_name})`;
-  guessBox.style.display = "none"; // 기본은 숨김, 라이어에게만 enable 이벤트
-});
-
-socket.on("liar_input_enable", () => {
-  // 라이어에게만 입력창 표시
-  guessBox.style.display = "block";
-});
-
-socket.on("round_result", (data) => {
-  phaseTitle.textContent = `라운드 결과: ${data.winner} 승`;
-  keywordBox.textContent = `정답 제시어: ${data.keyword}`;
-  voteBox.style.display = "none";
-  guessBox.style.display = "none";
-});
-
-socket.on("next_round_soon", (data) => {
-  phaseTitle.textContent = `잠시 후 라운드 ${data.next_round} 시작`;
-  setTimer("");
-});
-
-socket.on("game_over", (data) => {
-  phaseTitle.textContent = "게임 종료! 최종 점수";
-  scoreboardList.innerHTML = "";
-  data.scoreboard.forEach(s => {
-    const li = document.createElement("li");
-    li.textContent = `${s.name}: ${s.score}점`;
-    li.setAttribute("data-name", s.name);
-    li.setAttribute("data-score", s.score);
-    scoreboardList.appendChild(li);
-  });
-  scoreboardBox.style.display = "block";
-});
-
-socket.on("timer_tick", (data) => {
-  setTimer(data.remaining);
-});
-
-socket.on("timer_done", () => {
-  // no-op
+// 에러 메시지
+socket.on('error_msg', (data)=>{
+  alert(data?.msg || '오류가 발생했어요.');
 });
