@@ -296,7 +296,7 @@ def end_or_next_round():
 @app.route("/")
 def index():
     return render_template("index.html")
-
+    
 # ===== 소켓 이벤트 =====
 @socketio.on("connect")
 def on_connect():
@@ -464,5 +464,7 @@ def on_start_vote_sum_reveal():
         return
     combined_vote_and_reveal_then_judge()
 
+# ===== 서버 실행 =====
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    # Render/로컬 모두 호환
+    socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
