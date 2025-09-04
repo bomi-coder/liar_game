@@ -7,7 +7,7 @@ let mySid = null;
 let isHost = false;
 let currentVoteRound = null; // 1 or 2
 let voteSelections = {1: null, 2: null};
-let voteLogs = {1: [], 2: []}; // ✅ [{voter_name,target_name}, ...]
+let voteLogs = {1: [], 2: []};
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
@@ -67,17 +67,14 @@ socket.on("player_list", list=>{
 
 socket.on("phase", data=>{
   if(data.phase === "lobby"){ showSection("lobby"); }
-  if(data.phase === "assign"){ showSection("game"); }
+  if(data.phase === "assign" || data.phase === "hints" || data.phase === "discuss"){
+    showSection("game");
+  }
   if(data.phase === "game_end"){ alert("게임 종료!"); showSection("intro"); }
 });
 
-// ✅ 투표, 타이머 등 기존 로직 그대로 유지
-socket.on("timer_update", sec=>{
-  const el = $("#timer");
-  if(el) el.textContent = sec;
-});
-
-socket.on("timer_done", ()=>{
-  const el = $("#timer");
-  if(el) el.textContent = "⏰";
-});
+// ✅ 타이머 UI 업데이트
+timerEl = $("#timer");
+socket.on("timer_reset", d=>{ if(timerEl) timerEl.textContent = d.seconds; });
+socket.on("timer_tick", d=>{ if(timerEl) timerEl.textContent = d.remaining; });
+socket.on("timer_done", ()=>{ if(timerEl) timerEl.textContent = "⏰"; });
